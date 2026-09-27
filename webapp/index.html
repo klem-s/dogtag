@@ -107,7 +107,7 @@ const SUPABASE_URL = "https://mpabvboisgqywhguvdzr.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_nHqxdYoQjwENmG0BuqxlHg_6-NzMckW";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const $ = (id) => document.getElementById(id);
+const byId = (id) => document.getElementById(id);
 
 function randomKey() {
   const bytes = new Uint8Array(32);
@@ -122,7 +122,7 @@ function showErr(el, msg) {
 
 async function refreshKeys() {
   const { data, error } = await sb.from("api_keys").select("id, key, created_at").order("created_at", { ascending: false });
-  const list = $("key-list");
+  const list = byId("key-list");
   list.innerHTML = "";
   if (error) return;
   for (const row of data) {
@@ -159,18 +159,18 @@ async function refreshChart() {
     .order("started_at", { ascending: true });
 
   const rows = (error ? [] : data).filter((r) => r.balance_now != null || r.rank != null);
-  $("chart-empty").hidden = rows.length > 0;
+  byId("chart-empty").hidden = rows.length > 0;
 
   const last = rows.at(-1);
-  $("stat-balance").textContent = last && last.balance_now != null ? "$" + last.balance_now.toLocaleString() : "?";
-  $("stat-rank").textContent = last && last.rank != null ? last.rank : "?";
+  byId("stat-balance").textContent = last && last.balance_now != null ? "$" + last.balance_now.toLocaleString() : "?";
+  byId("stat-rank").textContent = last && last.rank != null ? last.rank : "?";
 
   const labels = rows.map((r) => new Date(r.started_at));
   const balances = rows.map((r) => r.balance_now);
   const ranks = rows.map((r) => r.rank);
 
   if (chart) chart.destroy();
-  chart = new Chart($("chart"), {
+  chart = new Chart(byId("chart"), {
     type: "line",
     data: {
       labels,
@@ -199,47 +199,47 @@ document.querySelectorAll(".tabs button").forEach((btn) => {
   });
 });
 
-$("gen-key").addEventListener("click", async () => {
+byId("gen-key").addEventListener("click", async () => {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return;
   const key = randomKey();
   const { error } = await sb.from("api_keys").insert({ user_id: user.id, key });
   if (error) return;
-  const box = $("new-key");
+  const box = byId("new-key");
   box.hidden = false;
   box.textContent = key;
   refreshKeys();
 });
 
-$("signin").addEventListener("click", async () => {
-  showErr($("auth-err"), "");
-  const { error } = await sb.auth.signInWithPassword({ email: $("email").value, password: $("password").value });
-  if (error) showErr($("auth-err"), error.message);
+byId("signin").addEventListener("click", async () => {
+  showErr(byId("auth-err"), "");
+  const { error } = await sb.auth.signInWithPassword({ email: byId("email").value, password: byId("password").value });
+  if (error) showErr(byId("auth-err"), error.message);
 });
 
-$("signup").addEventListener("click", async () => {
-  showErr($("auth-err"), "");
-  const { error } = await sb.auth.signUp({ email: $("email").value, password: $("password").value });
-  if (error) return showErr($("auth-err"), error.message);
-  $("auth-msg").hidden = false;
-  $("auth-msg").textContent = "Compte créé - vérifie ta boîte mail si la confirmation est activée, sinon connecte-toi directement.";
+byId("signup").addEventListener("click", async () => {
+  showErr(byId("auth-err"), "");
+  const { error } = await sb.auth.signUp({ email: byId("email").value, password: byId("password").value });
+  if (error) return showErr(byId("auth-err"), error.message);
+  byId("auth-msg").hidden = false;
+  byId("auth-msg").textContent = "Compte créé - vérifie ta boîte mail si la confirmation est activée, sinon connecte-toi directement.";
 });
 
-$("signout").addEventListener("click", async () => {
+byId("signout").addEventListener("click", async () => {
   await sb.auth.signOut();
   render(null);
 });
 
 async function render(session) {
   if (session) {
-    $("auth-card").hidden = true;
-    $("app").hidden = false;
-    $("who").textContent = session.user.email;
+    byId("auth-card").hidden = true;
+    byId("app").hidden = false;
+    byId("who").textContent = session.user.email;
     await refreshKeys();
     await refreshChart();
   } else {
-    $("auth-card").hidden = false;
-    $("app").hidden = true;
+    byId("auth-card").hidden = false;
+    byId("app").hidden = true;
   }
 }
 
