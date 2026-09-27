@@ -212,6 +212,25 @@ pub fn money_boxes(text: &str, xs: Option<&[f32]>) -> (Option<i64>, Option<i64>,
     if t.signed { (None, Some(t.v), false) } else { (Some(t.v), None, true) }
 }
 
+/// The rank/level badge next to the balance on the end-of-round layout ("$967,270147" - no separator,
+/// tight kerning glues it to the balance): purely additive, doesn't touch the balance itself (money_re
+/// already stops at the last full group of 3 digits, so the balance amount is never affected by this).
+/// Only the LAST money match is checked, and only 2-4 trailing digits directly glued to it (no space,
+/// no separator) count - anything else looks nothing like this specific layout.
+pub fn rank_in(text: &str) -> Option<i64> {
+    let m = money_re().find_iter(text).last()?;
+    let rest = &text[m.end()..];
+    let n = rest.chars().take_while(|c| c.is_ascii_digit()).count();
+    if !(2..=4).contains(&n) {
+        return None;
+    }
+    // must not continue into more digits/letters that OCR could still consider part of the same token
+    if rest.chars().nth(n).is_some_and(|c| c.is_alphanumeric()) {
+        return None;
+    }
+    digits(&rest[..n])
+}
+
 #[cfg(test)]
 pub fn parse_lines<S: AsRef<str>>(lines: &[S]) -> Reading {
     let pl: Vec<(String, Vec<f32>)> = lines.iter().map(|l| (l.as_ref().to_string(), Vec::new())).collect();
@@ -286,6 +305,20 @@ mod tests {
         assert_eq!((r.balance, r.match_change), (None, Some(-8000)));
         let r = parse_lines(&["+$1,000"]);
         assert_eq!((r.balance, r.match_change), (None, Some(1000)));
+    }
+
+    #[test]
+    fn rank_glued_to_balance() {
+        // end-of-round layout: no separator between the balance and the rank badge - money_re still
+        // stops at the last full group of 3 digits, so the balance itself is unaffected.
+        assert_eq!(rank_in("$967,270147"), Some(147));
+        assert_eq!(money_boxes("$967,270147", None).0, Some(967_270));
+        // normal HUD line: nothing glued on, no false positive
+        assert_eq!(rank_in("-$13,393 $877,511"), None);
+        assert_eq!(rank_in("$48,250"), None);
+        // only 2-4 digits count; a longer run looks like OCR noise, not a rank badge
+        assert_eq!(rank_in("$1,015,55612345"), None);
+        assert_eq!(rank_in("$1,0155"), None); // only 1 digit past the group - not a badge either
     }
 
     #[test]

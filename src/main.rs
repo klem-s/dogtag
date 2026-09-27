@@ -192,6 +192,7 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
     let mut last_downed_read = t0 - Duration::from_secs(10);
     let mut last_victory_read = t0 - Duration::from_secs(10);
     let mut last_victory_scores: Vec<i64> = Vec::new();
+    let mut last_rank: Option<i64> = None;
     let mut downs = tracker::DownTracker::new(Duration::from_secs_f32(cfg.balance.same_down_within_s.max(0.0)));
     let debug = std::env::args().any(|a| a == "--debug");
     let mut last_lines: Vec<String> = Vec::new();
@@ -223,6 +224,16 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
             last_lines = lines.clone();
         }
         let reading = parse::parse_positioned(&plines);
+        // rank/level badge, glued to the balance on the end-of-round layout: diagnostic only for now,
+        // like [regions.victory] - not wired into the session/metrics yet.
+        if debug {
+            if let Some(rank) = lines.iter().find_map(|l| parse::rank_in(l)) {
+                if Some(rank) != last_rank {
+                    eprintln!("[rank] {rank}");
+                    last_rank = Some(rank);
+                }
+            }
+        }
         // the match change: accepted when read the same on 3 frames in a row
         last_change = match (reading.match_change, last_change) {
             (Some(c), Some((p, n))) if c == p => Some((c, n + 1)),
