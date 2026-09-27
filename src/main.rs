@@ -124,6 +124,26 @@ async fn session_main(cfg: Config, maker: SourceMaker, realtime: bool) -> Result
     let metrics_stop = Arc::new(tokio::sync::Notify::new());
     let metrics = tokio::spawn(metrics::run(cfg.metrics.clone(), cfg.push.data_dir.clone(), shared.tx.subscribe(), metrics_stop.clone()));
 
+    // ping [push] endpoint every 2 min while playing, in addition to the real send at the end (below) -
+    // keeps the web app's per-player graph moving during a long session instead of jumping once at Ctrl+C
+    let push_stop = Arc::new(tokio::sync::Notify::new());
+    let (pcfg, psh, pstop) = (cfg.push.clone(), shared.clone(), push_stop.clone());
+    let push_ticker = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(120));
+        tick.tick().await; // first tick is immediate; skip it, there is nothing to report yet
+        loop {
+            tokio::select! {
+                _ = tick.tick() => {
+                    let snap = psh.session.lock().unwrap().clone();
+                    if let Err(e) = push::send_update(&pcfg, &snap).await {
+                        eprintln!("[push] periodic: {e:#}");
+                    }
+                }
+                _ = pstop.notified() => break,
+            }
+        }
+    });
+
     let (c, sh, st) = (cfg.clone(), shared.clone(), stop.clone());
     let reader = std::thread::spawn(move || {
         if let Err(e) = read_loop(&c, maker, &sh, &st, realtime) {
@@ -146,7 +166,9 @@ async fn session_main(cfg: Config, maker: SourceMaker, realtime: bool) -> Result
     });
     eprintln!("[session] {} min - solde {:?}, niveau {:?}", session.minutes().round(), session.balance_now, session.rank);
     metrics_stop.notify_one();
+    push_stop.notify_one();
     let _ = metrics.await;
+    let _ = push_ticker.await;
     push::finish(&cfg.push, &session).await?;
     srv.abort();
     Ok(())

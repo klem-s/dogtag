@@ -105,6 +105,18 @@ pub async fn finish(cfg: &PushCfg, s: &Session) -> Result<()> {
     Ok(())
 }
 
+/// A lightweight ping while the session is still running (every couple minutes - see main.rs), so the
+/// per-player graph in the web app doesn't wait until Ctrl+C to move. Unlike `finish`, nothing is saved
+/// locally and a failure is just logged: it's a snapshot, not a record, the next tick (or `finish` at
+/// the end) will carry the up-to-date numbers anyway.
+pub async fn send_update(cfg: &PushCfg, s: &Session) -> Result<()> {
+    if cfg.endpoint.is_empty() {
+        return Ok(());
+    }
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(15)).build()?;
+    post_endpoint(&client, cfg, &payload(s)).await
+}
+
 /// Resends queued sessions; keeps the ones that still fail.
 pub async fn retry_pending(cfg: &PushCfg) {
     if cfg.endpoint.is_empty() {
