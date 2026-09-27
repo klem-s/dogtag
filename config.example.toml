@@ -38,6 +38,17 @@ height = 0.60
 # top = 0.01
 # height = 0.07
 
+# Panneau de fin de manche (score des 3 équipes) : EXPERIMENTAL, diagnostic uniquement pour
+# l'instant (rien n'est encore envoyé à Grafana/serve-stats). Décommente, lance `dogtag calibrate`
+# sur une capture de l'écran VICTORY/DEFEAT, vérifie calibrate/victory.png et les 3 scores affichés,
+# ajuste si besoin. Contrairement aux autres zones, ce panneau est CENTRÉ à l'écran (pas collé à un
+# bord) : les valeurs ci-dessous sont calées sur une capture 16:9, à revérifier en ultrawide.
+# [regions.victory]
+# right = 0.52
+# width = 0.75
+# top = 0.36
+# height = 0.19
+
 [balance]                  # contre l'écran de mort qui affiche le total de ton compte
 max_jump = 20000           # un changement de solde plus grand que ça ($) est suspect...
 big_jump_hold_s = 60.0     # ...et doit rester affiché ce nombre de secondes avant d'être cru

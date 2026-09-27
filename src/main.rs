@@ -183,6 +183,8 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
     let t0 = Instant::now();
     let mut sim = t0;
     let mut last_downed_read = t0 - Duration::from_secs(10);
+    let mut last_victory_read = t0 - Duration::from_secs(10);
+    let mut last_victory_scores: Vec<i64> = Vec::new();
     let mut downs = tracker::DownTracker::new(Duration::from_secs_f32(cfg.balance.same_down_within_s.max(0.0)));
     let debug = std::env::args().any(|a| a == "--debug");
     let mut last_lines: Vec<String> = Vec::new();
@@ -261,6 +263,21 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
             downed = downs.read(seen, now);
         }
 
+        // end-of-round panel (3 team scores): diagnostic only for now, not wired into the session yet -
+        // `[regions.victory]` is unset by default, and even calibrated it only prints in --debug so we can
+        // confirm the region/parsing are right on real footage before it feeds anything.
+        if let Some(region) = &cfg.regions.victory {
+            if now.duration_since(last_victory_read) >= Duration::from_millis(900) {
+                last_victory_read = now;
+                let lines = reader.read_lines(&frame, region).unwrap_or_default();
+                let scores = parse::team_scores(&lines);
+                if debug && scores != last_victory_scores && !scores.is_empty() {
+                    eprintln!("[victory] {:?} => scores {:?}", lines, scores);
+                    last_victory_scores = scores;
+                }
+            }
+        }
+
         // the match change only counts when the balance box is on screen with it (a stray "$200" from the
         // map is not a match change) and not while down
         let match_change = if frozen || reading.balance.is_none() { None } else { match_change };
@@ -324,6 +341,9 @@ fn calibrate(cfg: &Config, img: &Path) -> Result<()> {
     if let Some(b) = cfg.regions.balance {
         regions.push(("balance", b));
     }
+    if let Some(v) = cfg.regions.victory {
+        regions.push(("victory", v));
+    }
     for (name, region) in &regions {
         let (x, y, w, h) = region.rect(frame.width(), frame.height());
         let out = format!("calibrate/{name}.png");
@@ -342,6 +362,10 @@ fn calibrate(cfg: &Config, img: &Path) -> Result<()> {
         println!("\n== {name} reads:");
         if *name == "balance" {
             println!("  {:<40} => balance {:?}", lines.join(" | "), parse::balance_in(&lines));
+            continue;
+        }
+        if *name == "victory" {
+            println!("  {:<40} => team scores {:?}", lines.join(" | "), parse::team_scores(&lines));
             continue;
         }
         for l in &lines {

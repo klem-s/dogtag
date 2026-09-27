@@ -72,6 +72,12 @@ fn digits(s: &str) -> Option<i64> {
     cleaned.parse().ok()
 }
 
+/// End-of-round panel: one score per team, top to bottom (each sits in its own small box next to a
+/// colored bar, so one OCR'd line = one team - no need to disambiguate by position/color here).
+pub fn team_scores(lines: &[String]) -> Vec<i64> {
+    lines.iter().filter_map(|l| digits(l)).collect()
+}
+
 /// Snaps OCR'd letters to a known reason when close enough.
 pub fn snap_reason(raw: &str) -> (String, bool) {
     let norm: String = raw

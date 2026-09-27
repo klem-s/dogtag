@@ -112,6 +112,12 @@ pub struct Regions {
     /// instead of in `cash`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub balance: Option<Region>,
+    /// The end-of-round panel (3 team score bars). Off by default: unlike `cash`/`downed`, this
+    /// panel is horizontally CENTERED, not anchored to a screen edge, so `left`/`right` here are
+    /// only an approximation calibrated on one 16:9 capture - verify with `dogtag calibrate` before
+    /// trusting it, especially on ultrawide.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub victory: Option<Region>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,6 +181,7 @@ impl Default for Regions {
             cash: Region { left: None, right: 0.0, width: 0.42, top: 0.0, height: 0.22 },
             downed: Region { left: None, right: 0.0, width: 0.60, top: 0.25, height: 0.60 },
             balance: None,
+            victory: None,
         }
     }
 }
