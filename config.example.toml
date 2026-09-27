@@ -1,0 +1,61 @@
+# Copie ce fichier en config.toml (dogtag en crée un par défaut sinon).
+player = "TonPseudo"
+mode = "full"              # "full" : récompenses, downs et argent / "money" : seulement ton argent total
+                           # (aussi en ligne de commande : --mode money)
+
+[capture]
+window_title = "WARDOGS"   # vide = capturer l'écran `monitor`
+monitor = 0
+fps = 3.0                  # lectures par seconde du coin argent/récompenses
+
+[ocr]
+detection_model = "models/text-detection.rten"
+recognition_model = "models/text-recognition.rten"
+scale = 2.0                # agrandissement avant OCR (le texte du HUD est petit)
+invert = true              # texte clair du HUD -> texte sombre sur blanc
+threshold = 0              # 0 = niveaux de gris ; ex. 170 = noir et blanc strict
+
+# Zones en fractions de la HAUTEUR de l'image, ancrées au bord DROIT (comme le HUD) :
+# marche en 1080p, 1440p, 4K et en ultrawide sans rien changer.
+[regions.cash]             # solde + lignes "KILL 250XP", "CONTROL ZONE PRESENCE +$150"
+right = 0.0
+width = 0.42
+top = 0.0
+height = 0.22
+
+[regions.downed]           # là où "DAMAGE LOG" apparaît quand tu es à terre
+right = 0.0
+width = 0.60
+top = 0.25
+height = 0.60
+
+# Inutile avec le HUD normal (solde et variation de partie sont lus dans [regions.cash]).
+# Seulement si ton solde s'affiche ailleurs : décommente et ajuste avec `dogtag calibrate`.
+# `left` ancre la zone au bord GAUCHE (en fractions de la hauteur de l'image, comme les autres).
+# [regions.balance]
+# left = 0.02
+# width = 0.30
+# top = 0.01
+# height = 0.07
+
+[balance]                  # contre l'écran de mort qui affiche le total de ton compte
+max_jump = 20000           # un changement de solde plus grand que ça ($) est suspect...
+big_jump_hold_s = 60.0     # ...et doit rester affiché ce nombre de secondes avant d'être cru
+freeze_when_downed = true  # à terre (et juste après) : solde et variation de partie pas lus, récompenses oui
+same_down_within_s = 45.0  # "DAMAGE LOG" qui revient dans ce délai = même down (tu as regardé la carte)
+
+[overlay]
+port = 47900               # source navigateur OBS : http://127.0.0.1:47900/
+bind = "127.0.0.1"         # "0.0.0.0" pour que Grafana/Prometheus (Docker) lise /metrics
+
+[push]
+endpoint = ""              # ex. "https://ton-serveur.fr/api/sessions" (ou dogtag serve-stats)
+token = ""                 # envoyé en "Authorization: Bearer <token>"
+discord_webhook = ""       # URL de webhook Discord : une carte récap à chaque fin de session
+data_dir = "data"          # copie locale de chaque session + file d'attente des envois ratés
+min_minutes = 5.0          # sessions plus courtes : gardées en local, pas envoyées
+
+[metrics]                  # courbes Grafana (voir le dossier grafana/)
+url = ""                   # ex. "http://localhost:8428/write" avec le docker-compose fourni
+token = ""                 # jeton du serveur distant (server/.env DOGTAG_TOKEN) ou d'InfluxDB 2/3
+csv = true                 # copie de chaque changement dans data/balance.csv

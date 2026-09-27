@@ -1,0 +1,45 @@
+# Serveur distant dogtag : Grafana + VictoriaMetrics + dogtag serve-stats, derrière Caddy (HTTPS auto).
+# 1. cp .env.example .env  et remplis-le     2. docker compose up -d --build
+services:
+  caddy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [grafana, victoriametrics, stats]
+    restart: unless-stopped
+
+  victoriametrics:            # pas de port public : seulement /write via Caddy, avec le jeton
+    image: victoriametrics/victoria-metrics:latest
+    command: ["-storageDataPath=/storage", "-retentionPeriod=10y"]
+    volumes: [vmdata:/storage]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_SERVER_ROOT_URL: https://${DOMAIN}/
+      GF_AUTH_ANONYMOUS_ENABLED: ${GRAFANA_PUBLIC:-false}   # true = tableau visible sans compte
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/wardogs.json
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    restart: unless-stopped
+
+  stats:                      # sessions + classement (dogtag serve-stats)
+    build: ..
+    command: ["serve-stats", "--port", "8787", "--token", "${DOGTAG_TOKEN}", "--data", "/data/stats.jsonl"]
+    volumes: [statsdata:/data]
+    restart: unless-stopped
+
+volumes:
+  vmdata:
+  grafanadata:
+  statsdata:
+  caddydata:

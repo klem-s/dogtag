@@ -1,0 +1,664 @@
+{
+ "uid": "dogtag-wardogs",
+ "title": "WARDOGS - dogtag",
+ "editable": true,
+ "schemaVersion": 39,
+ "version": 1,
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "refresh": "10s",
+ "timezone": "browser",
+ "tags": [
+  "wardogs",
+  "dogtag"
+ ],
+ "templating": {
+  "list": [
+   {
+    "name": "player",
+    "label": "Joueur",
+    "type": "query",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "vm"
+    },
+    "query": {
+     "query": "label_values(wardogs_balance, player)",
+     "refId": "v"
+    },
+    "definition": "label_values(wardogs_balance, player)",
+    "includeAll": true,
+    "multi": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "refresh": 2,
+    "allValue": ".*"
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "stat",
+   "title": "Solde en jeu",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "vm"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "last_over_time(wardogs_balance{player=~\"$player\"}[30d])",
+     "instant": true,
+     "legendFormat": "{{player}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 0
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value_and_name"
+   }
+  },
+  {
+   "id": 2,
+   "type": "stat",
+   "title": "Variation sur la période",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "vm"
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "last_over_time(wardogs_balance{player=~\"$player\"}[$__range]) - first_over_time(wardogs_balance{player=~\"$player\"}[$__range])",
+     "instant": true,
+     "legendFormat": "{{player}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 0
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value_and_name"
+   }
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "Kills (période)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "vm"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "sum by (player) (increase(wardogs_kills{player=~\"$player\"}[$__range]))",
+     "instant": true,
+     "legendFormat": "{{player}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       }
+      ]
+     },
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value_and_name"
+   }
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "K/D session",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "vm"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "last_over_time(wardogs_kd{player=~\"$player\"}[1d])",
+     "instant": true,
+     "legendFormat": "{{player}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       }
+      ]
+     },
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value_and_name"
+   }
+  },
+  {
+   "id": 5,
+   "type": "timeseries",
+   "title": "Solde en jeu",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "vm"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 5,
+    "w": 24,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "wardogs_balance{player=~\"$player\"}",
+     "legendFormat": "{{player}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 0,
+      "spanNulls": true,
+      "showPoints": "never",
+      "lineInterpolation": "stepAfter",
+      "thresholdsStyle": {
+       "mode": "line+area"
+      }
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 0
+       }
+      ]
+     },
+     "color": {
+      "mode": "palette-classic"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 6,
+   "type": "timeseries",
+   "title": "Variation depuis le début de la session",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "vm"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 23,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "wardogs_balance_delta{player=~\"$player\"}",
+     "legendFormat": "{{player}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "spanNulls": true,
+      "showPoints": "never",
+      "lineInterpolation": "stepAfter",
+      "thresholdsStyle": {
+       "mode": "line"
+      }
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 0
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 7,
+   "type": "timeseries",
+   "title": "Argent gagné / dépensé (session)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "vm"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 23,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "wardogs_money_earned{player=~\"$player\"}",
+     "legendFormat": "gagné {{player}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "wardogs_money_spent{player=~\"$player\"}",
+     "legendFormat": "dépensé {{player}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "spanNulls": true,
+      "showPoints": "never",
+      "lineInterpolation": "stepAfter"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 8,
+   "type": "timeseries",
+   "title": "Kills et downs (session)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "vm"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 31,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "wardogs_kills{player=~\"$player\"}",
+     "legendFormat": "kills {{player}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "wardogs_downs{player=~\"$player\"}",
+     "legendFormat": "downs {{player}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "spanNulls": true,
+      "showPoints": "never",
+      "lineInterpolation": "stepAfter"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 9,
+   "type": "timeseries",
+   "title": "Assists, revives, véhicules (session)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "vm"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 31,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "wardogs_assists{player=~\"$player\"}",
+     "legendFormat": "assists"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "wardogs_revives{player=~\"$player\"}",
+     "legendFormat": "revives"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "wardogs_vehicles{player=~\"$player\"}",
+     "legendFormat": "véhicules"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "spanNulls": true,
+      "showPoints": "never",
+      "lineInterpolation": "stepAfter"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 10,
+   "type": "timeseries",
+   "title": "Variation de la partie (affichée par le jeu)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "vm"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 15,
+    "w": 24,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "vm"
+     },
+     "expr": "wardogs_match_change{player=~\"$player\"}",
+     "legendFormat": "{{player}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 0
+       }
+      ]
+     },
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "spanNulls": true,
+      "showPoints": "never",
+      "lineInterpolation": "stepAfter",
+      "thresholdsStyle": {
+       "mode": "line+area"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  }
+ ]
+}

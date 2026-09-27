@@ -1,0 +1,23 @@
+{$DOMAIN} {
+	encode gzip
+
+	# courbes : dogtag envoie "Authorization: Token <DOGTAG_TOKEN>"
+	handle /write {
+		@ok header Authorization "Token {$DOGTAG_TOKEN}"
+		handle @ok {
+			reverse_proxy victoriametrics:8428
+		}
+		respond 401
+	}
+
+	# sessions : POST avec "Authorization: Bearer <DOGTAG_TOKEN>" (vérifié par serve-stats),
+	# lecture libre de /api/leaderboard et /api/sessions
+	handle /api/* {
+		reverse_proxy stats:8787
+	}
+
+	# tout le reste : Grafana (avec son login)
+	handle {
+		reverse_proxy grafana:3000
+	}
+}

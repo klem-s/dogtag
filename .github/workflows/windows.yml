@@ -1,0 +1,16 @@
+name: windows-build
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --release
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dogtag-windows
+          path: |
+            target/release/dogtag.exe
+            config.example.toml

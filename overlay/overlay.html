@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>dogtag overlay</title>
+<!-- OBS: add a Browser source on http://127.0.0.1:47900/ , 520 x 210, transparent.
+     ?scale=0.8 to shrink, ?side=right to put the hole on the right. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700;800&family=Big+Shoulders+Text:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --steel-hi: #e3e5e0;
+    --steel: #b9bdb6;
+    --steel-lo: #868b83;
+    --stamp: #2f332d;
+    --up: #2f7d3b;
+    --down: #a8392a;
+    --chain: #9a9e96;
+    --num: "Big Shoulders Stencil Display", "Impact", "Arial Narrow", sans-serif;
+    --txt: "Big Shoulders Text", "Arial Narrow", "Segoe UI", sans-serif;
+  }
+  html, body { margin: 0; background: transparent; overflow: hidden; }
+  body { padding: 14px; }
+
+  .tag {
+    position: relative;
+    box-sizing: border-box;
+    width: 490px;
+    padding: 16px 26px 14px 76px;
+    border-radius: 34px;
+    color: var(--stamp);
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 1px, rgba(0,0,0,.03) 1px 3px),
+      linear-gradient(160deg, var(--steel-hi), var(--steel) 45%, var(--steel-lo));
+    box-shadow:
+      inset 0 2px 0 rgba(255,255,255,.7),
+      inset 0 -3px 0 rgba(0,0,0,.18),
+      inset 0 0 0 5px rgba(255,255,255,.08),
+      0 6px 18px rgba(0,0,0,.45);
+    transform-origin: top left;
+    transition: box-shadow .3s;
+  }
+  body.right .tag { padding: 16px 76px 14px 26px; }
+
+  /* the punched hole and a bit of ball chain */
+  .hole {
+    position: absolute; left: 28px; top: 50%; width: 26px; height: 26px; margin-top: -13px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 60%, rgba(0,0,0,.55), rgba(0,0,0,.25) 60%, transparent 70%);
+    box-shadow: inset 0 2px 3px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.6);
+  }
+  body.right .hole { left: auto; right: 28px; }
+  .chain {
+    position: absolute; left: 36px; top: -60px; width: 10px; height: 100px;
+    background: radial-gradient(circle, var(--chain) 3px, #5c605a 4px, transparent 5px) 0 0 / 10px 10px repeat-y;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,.5));
+  }
+  body.right .chain { left: auto; right: 36px; }
+
+  .name {
+    font: 700 17px/1 var(--txt);
+    letter-spacing: .06em;
+    margin: 0 0 8px;
+    text-shadow: 0 1px 0 rgba(255,255,255,.55), 0 -1px 0 rgba(0,0,0,.3);
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .name small { font-weight: 500; font-size: 14px; opacity: .75; letter-spacing: .02em; }
+
+  .row { display: grid; grid-template-columns: auto auto auto 1fr; gap: 24px; align-items: end; }
+  .money { align-items: flex-end; text-align: right; }
+  .stat { display: flex; flex-direction: column; }
+  .v {
+    font: 800 46px/0.9 var(--num);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1.5px 0 rgba(255,255,255,.6), 0 -1px 0 rgba(0,0,0,.35);
+    display: inline-block;
+  }
+  .l { font: 500 14px/1.2 var(--txt); opacity: .8; margin-top: 2px; }
+  .money .v { font-size: 36px; white-space: nowrap; }
+  .money.up .v { color: var(--up); }
+  .money.down .v { color: var(--down); }
+
+  .minor { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 9px; font: 500 14px/1 var(--txt); opacity: .8; }
+  .minor b { font: 800 17px/1 var(--num); opacity: 1; margin-right: 3px; }
+
+  /* the one moment: a number that changes gets stamped in */
+  .stamped { animation: stamp .42s cubic-bezier(.2,.9,.3,1.2); }
+  @keyframes stamp {
+    0% { transform: scale(1.35) translateY(-4px); filter: blur(1.5px); opacity: .2; }
+    55% { transform: scale(.94); filter: none; opacity: 1; }
+    100% { transform: none; }
+  }
+  /* downed: the edge of the tag goes red until you are back up */
+  body.downed .tag {
+    box-shadow:
+      inset 0 2px 0 rgba(255,255,255,.7),
+      inset 0 -3px 0 rgba(0,0,0,.18),
+      inset 0 0 0 4px rgba(168,57,42,.85),
+      0 6px 18px rgba(0,0,0,.45);
+  }
+  .off { opacity: .45; }
+  /* money mode: only the total money and its change */
+  body.money .full { display: none; }
+  body.money .row { grid-template-columns: 1fr; }
+  body.money .money { align-items: flex-start; text-align: left; }
+  body.money .money .v { font-size: 46px; }
+  body.money .minor { font-size: 16px; }
+  body.money .minor b { font-size: 21px; }
+  @media (prefers-reduced-motion: reduce) { .stamped { animation: none; } }
+</style>
+</head>
+<body>
+  <div class="tag" id="tag">
+    <div class="chain"></div>
+    <div class="hole"></div>
+    <p class="name"><span id="player">dogtag</span><small id="time">en attente du jeu</small></p>
+    <div class="row">
+      <div class="stat full"><span class="v" id="kills">0</span><span class="l">kills</span></div>
+      <div class="stat full"><span class="v" id="downs">0</span><span class="l">downs</span></div>
+      <div class="stat full"><span class="v" id="kd">0.00</span><span class="l">K/D</span></div>
+      <div class="stat money" id="moneybox"><span class="v" id="balance">$0</span><span class="l">balance session</span></div>
+    </div>
+    <div class="minor">
+      <span class="full"><b id="assists">0</b>assists</span>
+      <span class="full"><b id="revives">0</b>revives</span>
+      <span class="full"><b id="vehicles">0</b>véhicules</span>
+      <span class="full"><b id="headshots">0</b>headshots</span>
+      <span><b id="partie">?</b>partie</span>
+      <span><b id="solde">?</b>solde</span>
+    </div>
+  </div>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var scale = parseFloat(q.get("scale") || "1");
+  if (scale && scale !== 1) document.getElementById("tag").style.transform = "scale(" + scale + ")";
+  if (q.get("side") === "right") document.body.classList.add("right");
+
+  var last = {};
+  function money(v) {
+    var s = Math.abs(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return (v > 0 ? "+" : v < 0 ? "-" : "") + "$" + s;
+  }
+  function set(id, text) {
+    var el = document.getElementById(id);
+    if (last[id] === text) return;
+    var first = !(id in last);
+    last[id] = text;
+    el.textContent = text;
+    if (!first) { el.classList.remove("stamped"); void el.offsetWidth; el.classList.add("stamped"); }
+  }
+  function draw(s) {
+    document.getElementById("tag").classList.remove("off");
+    document.body.classList.toggle("money", s.mode === "money");
+    set("player", s.player || "dogtag");
+    set("kills", String(s.kills));
+    set("downs", String(s.downs));
+    set("kd", Number(s.kd || 0).toFixed(2));
+    set("balance", money(s.balance_delta || 0));
+    ["assists", "revives", "vehicles", "headshots"].forEach(function (k) { set(k, String(s[k] || 0)); });
+    var box = document.getElementById("moneybox");
+    box.classList.toggle("up", s.balance_delta > 0);
+    box.classList.toggle("down", s.balance_delta < 0);
+    document.body.classList.toggle("downed", !!s.downed);
+    set("partie", s.match_change == null ? "?" : money(s.match_change));
+    set("solde", s.balance_now == null ? "?" : (s.balance_now < 0 ? "-$" : "$") +
+      Math.abs(s.balance_now).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+    document.getElementById("time").textContent = (s.minutes || 0) + " min";
+  }
+  function connect() {
+    var ws;
+    try { ws = new WebSocket("ws://" + (location.host || "127.0.0.1:47900") + "/ws"); }
+    catch (e) { return setTimeout(connect, 3000); }
+    ws.onmessage = function (m) { try { draw(JSON.parse(m.data)); } catch (e) {} };
+    ws.onclose = function () {
+      document.getElementById("tag").classList.add("off");
+      set("partie", s.match_change == null ? "?" : money(s.match_change));
+    set("solde", s.balance_now == null ? "?" : (s.balance_now < 0 ? "-$" : "$") +
+      Math.abs(s.balance_now).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+    document.getElementById("time").textContent = "dogtag n'est pas lancé";
+      setTimeout(connect, 3000);
+    };
+  }
+  connect();
+})();
+</script>
+</body>
+</html>
