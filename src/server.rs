@@ -87,17 +87,7 @@ async fn metrics(State(s): State<Arc<Shared>>) -> impl IntoResponse {
     g("up", "1 while dogtag is running", Some(1.0));
     g("balance_dollars", "In-game balance as read on the HUD", n("balance_now"));
     g("session_balance_delta_dollars", "Balance change since the session started", n("balance_delta"));
-    g("session_money_earned_dollars", "Money earned this session", n("money_earned"));
-    g("session_money_spent_dollars", "Money spent this session", n("money_spent"));
-    g("session_kills", "Kills this session", n("kills"));
-    g("session_downs", "Downs this session", n("downs"));
-    g("session_kd", "Kills per down this session", n("kd"));
-    g("session_assists", "Assists this session", n("assists"));
-    g("session_revives", "Revives this session", n("revives"));
-    g("session_vehicles", "Vehicles destroyed this session", n("vehicles"));
-    g("session_headshots", "Headshots this session", n("headshots"));
-    g("session_xp", "XP this session", n("xp"));
-    g("downed", "1 while downed", Some(if v["downed"].as_bool().unwrap_or(false) { 1.0 } else { 0.0 }));
+    g("rank", "Rank/level badge, as last read on the end-of-round screen", n("rank"));
     g("session_minutes", "Minutes since the session started", n("minutes"));
     ([("content-type", "text/plain; version=0.0.4")], out)
 }

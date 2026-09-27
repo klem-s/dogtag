@@ -1,11 +1,11 @@
-//! dogtag - session stats for WARDOGS.
+//! dogtag - tracks your total money and level for WARDOGS, nothing else.
 //!
 //!   dogtag [run]                 read the game live (Windows), overlay + push at the end
 //!   dogtag replay <folder>       same thing on a folder of screenshots (any OS, for testing)
 //!   dogtag calibrate <image>     save what the reader sees in one screenshot and print what it reads
 //!   dogtag serve-stats           receive everyone's sessions and serve a leaderboard
 //!
-//! Options: --config <file> (default config.toml), --mode full|money, --debug (print every OCR read),
+//! Options: --config <file> (default config.toml), --debug (print every OCR read),
 //!          serve-stats: --port --token --data
 mod capture;
 mod collector;
@@ -35,9 +35,9 @@ fn arg(args: &[String], name: &str) -> Option<String> {
 }
 
 /// Options that take a value; everything else starting with "--" is a switch (--debug).
-const VALUE_OPTS: &[&str] = &["--config", "--mode", "--port", "--token", "--data"];
+const VALUE_OPTS: &[&str] = &["--config", "--port", "--token", "--data"];
 
-/// The command and its arguments, without the options: `dogtag --debug --mode money` -> [].
+/// The command and its arguments, without the options: `dogtag --debug` -> [].
 fn positional(args: &[String]) -> Vec<String> {
     let mut out = Vec::new();
     let mut skip = false;
@@ -53,18 +53,8 @@ fn positional(args: &[String]) -> Vec<String> {
     out
 }
 
-fn load_cfg(path: &Path, args: &[String]) -> Result<Config> {
-    let mut cfg = Config::load(path)?;
-    if let Some(m) = arg(args, "--mode") {
-        cfg.mode = m;
-    }
-    cfg.mode = match cfg.mode.to_lowercase().as_str() {
-        "money" | "argent" => "money".into(),
-        "solde" | "total" => "solde".into(),
-        "full" | "complet" | "" => "full".into(),
-        other => bail!("mode {other:?} inconnu : \"full\", \"money\" ou \"solde\""),
-    };
-    Ok(cfg)
+fn load_cfg(path: &Path, _args: &[String]) -> Result<Config> {
+    Config::load(path)
 }
 
 #[tokio::main]
@@ -120,14 +110,8 @@ async fn live(_cfg: Config) -> Result<()> {
 /// Runs one session: reader thread + overlay server, until Ctrl+C, POST /api/end, or the replay ends.
 async fn session_main(cfg: Config, maker: SourceMaker, realtime: bool) -> Result<()> {
     push::retry_pending(&cfg.push).await;
-    let mut sess = Session::new(&cfg.player);
-    sess.mode = cfg.mode.clone();
+    let sess = Session::new(&cfg.player);
     let shared = Shared::new(sess);
-    eprintln!("[mode] {}", match cfg.mode.as_str() {
-        "money" => "money : seulement ton argent total et sa variation",
-        "solde" => "solde : seulement ton argent total, rien d'autre",
-        _ => "full : récompenses, downs et argent",
-    });
     let stop = Arc::new(AtomicBool::new(false));
 
     let srv = tokio::spawn(server::serve(shared.clone(), cfg.overlay.bind.clone(), cfg.overlay.port));
@@ -154,31 +138,7 @@ async fn session_main(cfg: Config, maker: SourceMaker, realtime: bool) -> Result
         s.ended_at = Some(chrono::Utc::now());
         s.clone()
     });
-    if session.mode == "solde" {
-        eprintln!(
-            "[session] {} min - solde {:?}, niveau {:?}",
-            session.minutes().round(),
-            session.balance_now,
-            session.rank
-        );
-    } else if session.mode == "money" {
-        eprintln!(
-            "[session] {} min - solde {:?} -> {:?}, balance {:+}",
-            session.minutes().round(),
-            session.balance_start,
-            session.balance_now,
-            session.balance_delta()
-        );
-    } else {
-    eprintln!(
-        "[session] {} min - {} kills, {} downs, K/D {:.2}, balance {:+}",
-        session.minutes().round(),
-        session.kills,
-        session.downs,
-        session.kd(),
-        session.balance_delta()
-    );
-    }
+    eprintln!("[session] {} min - solde {:?}, niveau {:?}", session.minutes().round(), session.balance_now, session.rank);
     metrics_stop.notify_one();
     let _ = metrics.await;
     push::finish(&cfg.push, &session).await?;
@@ -189,7 +149,6 @@ async fn session_main(cfg: Config, maker: SourceMaker, realtime: bool) -> Result
 fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBool, realtime: bool) -> Result<()> {
     let reader = hud::Reader::new(&cfg.ocr)?;
     let mut src = maker()?;
-    let mut tracker = tracker::Tracker::new(2, Duration::from_millis(1500));
     let period = Duration::from_secs_f32(1.0 / cfg.capture.fps.clamp(0.5, 10.0));
     // replays run as fast as the OCR goes, on a simulated clock so de-duplication behaves like live
     let t0 = Instant::now();
@@ -201,15 +160,11 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
     let mut downs = tracker::DownTracker::new(Duration::from_secs_f32(cfg.balance.same_down_within_s.max(0.0)));
     let debug = std::env::args().any(|a| a == "--debug");
     let mut last_lines: Vec<String> = Vec::new();
-    let money_only = cfg.mode == "money" || cfg.mode == "solde";
-    let solde_only = cfg.mode == "solde";
     let mut bal_filter = tracker::BalanceFilter::new(
         3,
         cfg.balance.max_jump,
         Duration::from_secs_f32(cfg.balance.big_jump_hold_s.max(0.0)),
     );
-    let mut last_change: Option<(i64, u32)> = None;
-    let mut shown_change: Option<i64> = None;
     let mut last_held: Option<i64> = None;
 
     while !stop.load(Ordering::SeqCst) {
@@ -232,14 +187,6 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
         // rank/level badge, glued to the balance on the end-of-round layout - only ever seen there,
         // so it naturally only updates near the end of a session.
         let rank = lines.iter().find_map(|l| parse::rank_in(l));
-        // the match change: accepted when read the same on 3 frames in a row
-        last_change = match (reading.match_change, last_change) {
-            (Some(c), Some((p, n))) if c == p => Some((c, n + 1)),
-            (Some(c), _) => Some((c, 1)),
-            (None, _) => None,
-        };
-        let match_change = last_change.filter(|(_, n)| *n >= 3).map(|(c, _)| c);
-        let fresh = if money_only { Vec::new() } else { tracker.update(&reading.rewards, now) };
         let balance_read = match &cfg.regions.balance {
             Some(region) => {
                 let bl = reader.read_lines(&frame, region).unwrap_or_default();
@@ -250,7 +197,8 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
             }
             None => reading.balance,
         };
-        // down (or just after, map open): the money boxes are not trusted, reward lines still count
+        // down (or just after, map open): the money boxes are not trusted meanwhile (death/deploy
+        // screens show another amount) - still tracked purely as a safety gate, not as a counted stat.
         let frozen = cfg.balance.freeze_when_downed && downs.quiet(now);
         let hud_ok = reading.hud_layout || cfg.regions.balance.is_some();
         let mut rebase = None;
@@ -271,13 +219,12 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
             tracker::BalanceVerdict::Nothing => None,
         };
 
-        // downed check about once a second (it is a bigger area)
-        let mut downed = None;
+        // downed check about once a second (it is a bigger area) - only feeds `frozen` above
         if now.duration_since(last_downed_read) >= Duration::from_millis(900) {
             last_downed_read = now;
             let text = reader.read_lines(&frame, &cfg.regions.downed).unwrap_or_default().join(" ").to_uppercase();
             let seen = text.contains("DAMAGE LOG") || (text.contains("DAMAGE") && text.contains("LOG"));
-            downed = downs.read(seen, now);
+            downs.read(seen, now);
         }
 
         // end-of-round panel (3 team scores): diagnostic only for now, not wired into the session yet -
@@ -295,30 +242,12 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
             }
         }
 
-        // the match change only counts when the balance box is on screen with it (a stray "$200" from the
-        // map is not a match change) and not while down
-        let match_change = if solde_only || frozen || reading.balance.is_none() { None } else { match_change };
-        let match_change = match_change.filter(|c| shown_change != Some(*c));
-        if let Some(c) = match_change {
-            shown_change = Some(c);
-        }
-        let downed = if money_only { None } else { downed };
         let rank_changed = rank.is_some() && rank != last_rank;
         if rank.is_some() {
             last_rank = rank;
         }
-        if !fresh.is_empty() || balance.is_some() || rebase.is_some() || downed.is_some() || match_change.is_some() || rank_changed {
+        if balance.is_some() || rebase.is_some() || rank_changed {
             shared.with(|s| {
-                for r in &fresh {
-                    eprintln!("[+] {}{}{}", r.reason,
-                        r.amount.map(|a| format!(" {a:+}$")).unwrap_or_default(),
-                        r.xp.map(|x| format!(" {x}XP")).unwrap_or_default());
-                    s.add_reward(r);
-                }
-                if let Some(c) = match_change {
-                    eprintln!("[partie] {c:+}$");
-                    s.match_change = Some(c);
-                }
                 if let Some(b) = balance {
                     eprintln!("[solde] {b}$");
                     s.set_balance(b);
@@ -329,22 +258,6 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
                 }
                 if let Some(b) = rebase {
                     s.rebase_balance(b);
-                }
-                match &downed {
-                    // money mode: downs only pause the money reading, they are not counted
-                    _ if money_only => {}
-                    Some(tracker::DownEvent::NewDown) => {
-                        s.set_downed_counting(true, true);
-                        eprintln!("[+] DOWNED");
-                    }
-                    Some(tracker::DownEvent::SameDown) => {
-                        s.set_downed_counting(true, false);
-                        eprintln!("[=] même down (carte fermée)");
-                    }
-                    Some(tracker::DownEvent::Up) => {
-                        s.set_downed_counting(false, false);
-                    }
-                    None => {}
                 }
             });
         }
@@ -397,10 +310,9 @@ fn calibrate(cfg: &Config, img: &Path) -> Result<()> {
             let what = match parse::parse_line(l) {
                 parse::Line::Money => {
                     let (b, c, _) = parse::money_boxes(l, None);
-                    format!("solde {b:?}, variation de partie {c:?}")
+                    let rank = parse::rank_in(l);
+                    format!("solde {b:?}, variation de partie {c:?}, niveau {rank:?}")
                 }
-                parse::Line::Reward(r) => format!("reward {:?} amount {:?} xp {:?}{}", r.reason, r.amount, r.xp,
-                    if r.known { "" } else { " (unknown reason)" }),
                 parse::Line::Noise => "-".into(),
             };
             println!("  {l:<40} => {what}");

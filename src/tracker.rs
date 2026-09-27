@@ -1,69 +1,6 @@
-//! Reward lines stay on screen for a few seconds: each one must count once, and only once it has been
-//! read the same way on consecutive frames.
-use crate::parse::Reward;
-use std::collections::HashMap;
+//! Balance and down tracking: the anti-false-positive protections that keep the total money reading
+//! honest (freeze while downed, reject big jumps that don't come from the normal in-game HUD).
 use std::time::{Duration, Instant};
-
-struct Seen {
-    /// how many identical lines were on the last frame
-    last: usize,
-    /// how many frames in a row showed at least `pending` lines
-    streak: u32,
-    /// highest count already reported while the lines stayed visible
-    counted: usize,
-    /// frames in a row with fewer lines than `counted` (one scrolled away)
-    low: u32,
-    last_seen: Instant,
-}
-
-pub struct Tracker {
-    seen: HashMap<Reward, Seen>,
-    confirm_frames: u32,
-    forget_after: Duration,
-}
-
-impl Tracker {
-    pub fn new(confirm_frames: u32, forget_after: Duration) -> Self {
-        Self { seen: HashMap::new(), confirm_frames, forget_after }
-    }
-
-    /// Feeds one frame's rewards; returns the ones that are new.
-    pub fn update(&mut self, rewards: &[Reward], now: Instant) -> Vec<Reward> {
-        let mut counts: HashMap<&Reward, usize> = HashMap::new();
-        for r in rewards {
-            *counts.entry(r).or_default() += 1;
-        }
-        let mut fresh = Vec::new();
-        for (r, n) in counts {
-            let s = self.seen.entry(r.clone()).or_insert(Seen { last: 0, streak: 0, counted: 0, low: 0, last_seen: now });
-            if now.duration_since(s.last_seen) >= self.forget_after {
-                // it left the screen long enough ago: this is a new line
-                *s = Seen { last: 0, streak: 0, counted: 0, low: 0, last_seen: now };
-            }
-            // a new count must itself be seen on `confirm_frames` frames before it counts
-            s.streak = if n == s.last { s.streak + 1 } else { 1 };
-            if n < s.counted {
-                s.low += 1;
-                if s.low >= self.confirm_frames {
-                    s.counted = n;
-                }
-            } else {
-                s.low = 0;
-            }
-            s.last = n;
-            s.last_seen = now;
-            if s.streak >= self.confirm_frames && n > s.counted {
-                for _ in s.counted..n {
-                    fresh.push(r.clone());
-                }
-                s.counted = n;
-            }
-        }
-        let forget = self.forget_after;
-        self.seen.retain(|_, s| now.duration_since(s.last_seen) < forget);
-        fresh
-    }
-}
 
 /// What the balance filter did with a read.
 #[derive(Debug, PartialEq)]
@@ -215,61 +152,6 @@ impl DownTracker {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn kill() -> Reward {
-        Reward { reason: "KILL".into(), known: true, amount: None, xp: Some(250) }
-    }
-    fn zone() -> Reward {
-        Reward { reason: "CONTROL ZONE PRESENCE".into(), known: true, amount: Some(150), xp: None }
-    }
-
-    #[test]
-    fn a_line_on_screen_counts_once() {
-        let mut t = Tracker::new(2, Duration::from_millis(1500));
-        let t0 = Instant::now();
-        let ms = |m| t0 + Duration::from_millis(m);
-        assert!(t.update(&[kill()], ms(0)).is_empty()); // not confirmed yet
-        assert_eq!(t.update(&[kill()], ms(300)).len(), 1);
-        for i in 2..10 {
-            assert!(t.update(&[kill()], ms(300 * i)).is_empty());
-        }
-    }
-
-    #[test]
-    fn a_second_identical_line_counts() {
-        let mut t = Tracker::new(2, Duration::from_millis(1500));
-        let t0 = Instant::now();
-        let ms = |m| t0 + Duration::from_millis(m);
-        t.update(&[kill()], ms(0));
-        assert_eq!(t.update(&[kill()], ms(300)).len(), 1);
-        t.update(&[kill(), kill(), zone()], ms(600));
-        let fresh = t.update(&[kill(), kill(), zone()], ms(900));
-        assert_eq!(fresh.len(), 2); // one more kill + the zone line
-    }
-
-    #[test]
-    fn a_single_misread_frame_does_not_count() {
-        let mut t = Tracker::new(2, Duration::from_millis(1500));
-        let t0 = Instant::now();
-        assert!(t.update(&[zone()], t0).is_empty());
-        assert!(t.update(&[], t0 + Duration::from_millis(300)).is_empty());
-        // gone for longer than forget_after: a later line is a new reward
-        let later = t0 + Duration::from_secs(5);
-        t.update(&[zone()], later);
-        assert_eq!(t.update(&[zone()], later + Duration::from_millis(300)).len(), 1);
-    }
-
-    #[test]
-    fn same_line_again_after_it_left_counts_again() {
-        let mut t = Tracker::new(2, Duration::from_millis(1500));
-        let t0 = Instant::now();
-        let ms = |m| t0 + Duration::from_millis(m);
-        t.update(&[kill()], ms(0));
-        assert_eq!(t.update(&[kill()], ms(300)).len(), 1);
-        t.update(&[], ms(600));
-        t.update(&[kill()], ms(4000));
-        assert_eq!(t.update(&[kill()], ms(4300)).len(), 1);
-    }
 
     #[test]
     fn map_during_a_down_is_the_same_down() {

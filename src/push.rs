@@ -60,29 +60,10 @@ async fn post_discord(client: &reqwest::Client, url: &str, s: &Session) -> Resul
             "title": format!("{} - session WARDOGS", s.player),
             "description": format!("{} min de jeu", s.minutes().round()),
             "color": if delta >= 0 { 0x3fa34d } else { 0xc0392b },
-            "fields": if s.mode == "solde" {
-                json!([
-                    {"name": "Solde", "value": s.balance_now.map(money).unwrap_or("?".into()), "inline": true},
-                    {"name": "Niveau", "value": s.rank.map(|r| r.to_string()).unwrap_or("?".into()), "inline": true},
-                ])
-            } else if s.mode == "money" {
-                json!([
-                    {"name": "Balance session", "value": format!("{}{}", if delta >= 0 {"+"} else {""}, money(delta)), "inline": true},
-                    {"name": "Solde début", "value": s.balance_start.map(money).unwrap_or("?".into()), "inline": true},
-                    {"name": "Solde fin", "value": s.balance_now.map(money).unwrap_or("?".into()), "inline": true},
-                ])
-            } else {
-                json!([
-                {"name": "Kills", "value": s.kills.to_string(), "inline": true},
-                {"name": "Downs", "value": s.downs.to_string(), "inline": true},
-                {"name": "K/D", "value": format!("{:.2}", s.kd()), "inline": true},
-                {"name": "Assists", "value": s.assists.to_string(), "inline": true},
-                {"name": "Revives", "value": s.revives.to_string(), "inline": true},
-                {"name": "Véhicules", "value": s.vehicles.to_string(), "inline": true},
-                {"name": "Balance", "value": format!("{}{}", if delta >= 0 {"+"} else {""}, money(delta)), "inline": true},
-                {"name": "Gagné / dépensé", "value": format!("{} / {}", money(s.money_earned), money(s.money_spent)), "inline": true},
-                ])
-            },
+            "fields": [
+                {"name": "Solde", "value": s.balance_now.map(money).unwrap_or("?".into()), "inline": true},
+                {"name": "Niveau", "value": s.rank.map(|r| r.to_string()).unwrap_or("?".into()), "inline": true},
+            ],
             "timestamp": s.started_at.to_rfc3339(),
         }]
     });

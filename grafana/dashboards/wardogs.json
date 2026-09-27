@@ -52,7 +52,7 @@
    "gridPos": {
     "x": 0,
     "y": 0,
-    "w": 6,
+    "w": 8,
     "h": 5
    },
    "targets": [
@@ -111,9 +111,9 @@
     "uid": "vm"
    },
    "gridPos": {
-    "x": 6,
+    "x": 8,
     "y": 0,
-    "w": 6,
+    "w": 8,
     "h": 5
    },
    "targets": [
@@ -166,15 +166,15 @@
   {
    "id": 3,
    "type": "stat",
-   "title": "Kills (période)",
+   "title": "Niveau",
    "datasource": {
     "type": "prometheus",
     "uid": "vm"
    },
    "gridPos": {
-    "x": 12,
+    "x": 16,
     "y": 0,
-    "w": 6,
+    "w": 8,
     "h": 5
    },
    "targets": [
@@ -184,7 +184,7 @@
       "type": "prometheus",
       "uid": "vm"
      },
-     "expr": "sum by (player) (increase(wardogs_kills{player=~\"$player\"}[$__range]))",
+     "expr": "last_over_time(wardogs_rank{player=~\"$player\"}[30d])",
      "instant": true,
      "legendFormat": "{{player}}"
     }
@@ -205,64 +205,6 @@
       ]
      },
      "decimals": 0
-    },
-    "overrides": []
-   },
-   "options": {
-    "reduceOptions": {
-     "calcs": [
-      "lastNotNull"
-     ],
-     "fields": "",
-     "values": false
-    },
-    "colorMode": "value",
-    "graphMode": "none",
-    "textMode": "value_and_name"
-   }
-  },
-  {
-   "id": 4,
-   "type": "stat",
-   "title": "K/D session",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "vm"
-   },
-   "gridPos": {
-    "x": 18,
-    "y": 0,
-    "w": 6,
-    "h": 5
-   },
-   "targets": [
-    {
-     "refId": "A",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "vm"
-     },
-     "expr": "last_over_time(wardogs_kd{player=~\"$player\"}[1d])",
-     "instant": true,
-     "legendFormat": "{{player}}"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "none",
-     "color": {
-      "mode": "thresholds"
-     },
-     "thresholds": {
-      "mode": "absolute",
-      "steps": [
-       {
-        "color": "text",
-        "value": null
-       }
-      ]
-     },
-     "decimals": 2
     },
     "overrides": []
    },
@@ -357,7 +299,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 23,
+    "y": 15,
     "w": 12,
     "h": 8
    },
@@ -415,198 +357,15 @@
   {
    "id": 7,
    "type": "timeseries",
-   "title": "Argent gagné / dépensé (session)",
+   "title": "Niveau au fil du temps",
    "datasource": {
     "type": "prometheus",
     "uid": "vm"
    },
    "gridPos": {
     "x": 12,
-    "y": 23,
-    "w": 12,
-    "h": 8
-   },
-   "targets": [
-    {
-     "refId": "A",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "vm"
-     },
-     "expr": "wardogs_money_earned{player=~\"$player\"}",
-     "legendFormat": "gagné {{player}}"
-    },
-    {
-     "refId": "B",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "vm"
-     },
-     "expr": "wardogs_money_spent{player=~\"$player\"}",
-     "legendFormat": "dépensé {{player}}"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "currencyUSD",
-     "custom": {
-      "drawStyle": "line",
-      "lineWidth": 2,
-      "fillOpacity": 10,
-      "spanNulls": true,
-      "showPoints": "never",
-      "lineInterpolation": "stepAfter"
-     }
-    },
-    "overrides": []
-   },
-   "options": {
-    "legend": {
-     "displayMode": "list",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi"
-    }
-   }
-  },
-  {
-   "id": 8,
-   "type": "timeseries",
-   "title": "Kills et downs (session)",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "vm"
-   },
-   "gridPos": {
-    "x": 0,
-    "y": 31,
-    "w": 12,
-    "h": 8
-   },
-   "targets": [
-    {
-     "refId": "A",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "vm"
-     },
-     "expr": "wardogs_kills{player=~\"$player\"}",
-     "legendFormat": "kills {{player}}"
-    },
-    {
-     "refId": "B",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "vm"
-     },
-     "expr": "wardogs_downs{player=~\"$player\"}",
-     "legendFormat": "downs {{player}}"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "none",
-     "custom": {
-      "drawStyle": "line",
-      "lineWidth": 2,
-      "fillOpacity": 10,
-      "spanNulls": true,
-      "showPoints": "never",
-      "lineInterpolation": "stepAfter"
-     }
-    },
-    "overrides": []
-   },
-   "options": {
-    "legend": {
-     "displayMode": "list",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi"
-    }
-   }
-  },
-  {
-   "id": 9,
-   "type": "timeseries",
-   "title": "Assists, revives, véhicules (session)",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "vm"
-   },
-   "gridPos": {
-    "x": 12,
-    "y": 31,
-    "w": 12,
-    "h": 8
-   },
-   "targets": [
-    {
-     "refId": "A",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "vm"
-     },
-     "expr": "wardogs_assists{player=~\"$player\"}",
-     "legendFormat": "assists"
-    },
-    {
-     "refId": "B",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "vm"
-     },
-     "expr": "wardogs_revives{player=~\"$player\"}",
-     "legendFormat": "revives"
-    },
-    {
-     "refId": "C",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "vm"
-     },
-     "expr": "wardogs_vehicles{player=~\"$player\"}",
-     "legendFormat": "véhicules"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "none",
-     "custom": {
-      "drawStyle": "line",
-      "lineWidth": 2,
-      "fillOpacity": 10,
-      "spanNulls": true,
-      "showPoints": "never",
-      "lineInterpolation": "stepAfter"
-     }
-    },
-    "overrides": []
-   },
-   "options": {
-    "legend": {
-     "displayMode": "list",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi"
-    }
-   }
-  },
-  {
-   "id": 10,
-   "type": "timeseries",
-   "title": "Variation de la partie (affichée par le jeu)",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "vm"
-   },
-   "gridPos": {
-    "x": 0,
     "y": 15,
-    "w": 24,
+    "w": 12,
     "h": 8
    },
    "targets": [
@@ -616,36 +375,21 @@
       "type": "prometheus",
       "uid": "vm"
      },
-     "expr": "wardogs_match_change{player=~\"$player\"}",
+     "expr": "wardogs_rank{player=~\"$player\"}",
      "legendFormat": "{{player}}"
     }
    ],
    "fieldConfig": {
     "defaults": {
-     "unit": "currencyUSD",
-     "thresholds": {
-      "mode": "absolute",
-      "steps": [
-       {
-        "color": "red",
-        "value": null
-       },
-       {
-        "color": "green",
-        "value": 0
-       }
-      ]
-     },
+     "unit": "none",
+     "decimals": 0,
      "custom": {
       "drawStyle": "line",
       "lineWidth": 2,
       "fillOpacity": 10,
       "spanNulls": true,
-      "showPoints": "never",
-      "lineInterpolation": "stepAfter",
-      "thresholdsStyle": {
-       "mode": "line+area"
-      }
+      "showPoints": "always",
+      "lineInterpolation": "stepAfter"
      }
     },
     "overrides": []

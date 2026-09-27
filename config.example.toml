@@ -1,14 +1,11 @@
 # Copie ce fichier en config.toml (dogtag en crée un par défaut sinon).
+# dogtag ne suit que ton solde total et ton niveau/rang - rien d'autre (pas de kills, downs, XP...).
 player = "TonPseudo"
-mode = "full"              # "full" : récompenses, downs et argent
-                           # "money" : seulement ton argent total et sa variation (balance session, partie)
-                           # "solde" : seulement ton argent total, rien d'autre (pas de balance session, pas de partie)
-                           # (aussi en ligne de commande : --mode money / --mode solde)
 
 [capture]
 window_title = "WARDOGS"   # vide = capturer l'écran `monitor`
 monitor = 0
-fps = 3.0                  # lectures par seconde du coin argent/récompenses
+fps = 3.0                  # lectures par seconde du coin argent
 
 [ocr]
 detection_model = "models/text-detection.rten"
@@ -19,7 +16,7 @@ threshold = 0              # 0 = niveaux de gris ; ex. 170 = noir et blanc stric
 
 # Zones en fractions de la HAUTEUR de l'image, ancrées au bord DROIT (comme le HUD) :
 # marche en 1080p, 1440p, 4K et en ultrawide sans rien changer.
-[regions.cash]             # solde + lignes "KILL 250XP", "CONTROL ZONE PRESENCE +$150"
+[regions.cash]             # solde + niveau (badge collé au solde en fin de manche)
 right = 0.0
 width = 0.42
 top = 0.0
@@ -54,7 +51,7 @@ height = 0.60
 [balance]                  # contre l'écran de mort qui affiche le total de ton compte
 max_jump = 20000           # un changement de solde plus grand que ça ($) est suspect...
 big_jump_hold_s = 60.0     # ...et doit rester affiché ce nombre de secondes avant d'être cru
-freeze_when_downed = true  # à terre (et juste après) : solde et variation de partie pas lus, récompenses oui
+freeze_when_downed = true  # à terre (et juste après) : le solde n'est pas lu
 same_down_within_s = 45.0  # "DAMAGE LOG" qui revient dans ce délai = même down (tu as regardé la carte)
 
 [overlay]

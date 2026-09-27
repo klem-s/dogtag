@@ -1,46 +1,18 @@
-//! Turns OCR'd lines of the money corner into readings: the balance and reward lines.
+//! Turns OCR'd lines of the money corner into readings: the balance, and (near the end of a round)
+//! the rank/level badge and the team scores.
 use regex::Regex;
 use std::sync::OnceLock;
-
-/// Reward reasons seen on the WARDOGS HUD (list from the Kennel.gg reader, English HUD).
-/// Misread letters are snapped to the closest one.
-pub const KNOWN_REASONS: &[&str] = &[
-    "KILL",
-    "REVENGE KILL",
-    "KILL CONFIRMED",
-    "HEADSHOT",
-    "ASSIST",
-    "SUPPLIED PLAYER ASSIST",
-    "REVIVED TEAMMATE",
-    "VEHICLE DESTROYED",
-    "ROTORS DESTROYED",
-    "CONTROL ZONE PRESENCE",
-    "CONTROL ZONE ENTERED",
-    "HOT ZONE PRESENCE",
-    "HOT ZONE ENTERED",
-    "PURCHASE REFUNDED",
-];
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Reward {
-    pub reason: String,
-    /// true when `reason` matched a known reason
-    pub known: bool,
-    /// money in dollars, signed; None when the line has no amount
-    pub amount: Option<i64>,
-    pub xp: Option<i64>,
-}
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Reading {
     /// the balance box at the HUD's right margin ($877,511) - never negative
     pub balance: Option<i64>,
-    /// the match-change box left of it (-$13,393)
+    /// the match-change box left of it (-$13,393) - only used internally to tell the balance box
+    /// apart from it; nothing downstream tracks the match change itself anymore.
     pub match_change: Option<i64>,
     /// both boxes read on one line in the normal in-game layout: the only reads trusted to start a
     /// balance or to move it a lot
     pub hud_layout: bool,
-    pub rewards: Vec<Reward>,
 }
 
 fn money_re() -> &'static Regex {
@@ -48,10 +20,6 @@ fn money_re() -> &'static Regex {
     // "$1,000" "+$150" "- $3.009"; groups only by comma/dot, so a box next to it ("143") never joins;
     // digits may come back as O/S/I/l
     R.get_or_init(|| Regex::new(r"([+\-–—~])?\s*\$\s*([0-9OoSsIl]{1,3}(?:[,.][0-9OoSsIl]{3})+|[0-9OoSsIl]+)").unwrap())
-}
-fn xp_re() -> &'static Regex {
-    static R: OnceLock<Regex> = OnceLock::new();
-    R.get_or_init(|| Regex::new(r"(?i)([0-9OoSsIl][0-9OoSsIl,]*)\s*XP").unwrap())
 }
 
 /// Fixes the letters OCR likes to put inside numbers and drops separators.
@@ -78,73 +46,18 @@ pub fn team_scores(lines: &[String]) -> Vec<i64> {
     lines.iter().filter_map(|l| digits(l)).collect()
 }
 
-/// Snaps OCR'd letters to a known reason when close enough.
-pub fn snap_reason(raw: &str) -> (String, bool) {
-    let norm: String = raw
-        .to_uppercase()
-        .chars()
-        .map(|c| if c.is_ascii_alphabetic() { c } else { ' ' })
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-    let mut best = ("", 0.0f64);
-    for r in KNOWN_REASONS {
-        let s = strsim::normalized_levenshtein(&norm, r);
-        if s > best.1 {
-            best = (r, s);
-        }
-    }
-    // short words need a closer match ("KILL" vs "KIL" is fine, "KILL" vs "HILL"... also fine; "SKILL" not)
-    let need = if norm.len() <= 5 { 0.74 } else { 0.78 };
-    if best.1 >= need {
-        (best.0.to_string(), true)
-    } else {
-        (norm, false)
-    }
-}
-
-/// One OCR'd line -> a reward, the balance, or nothing.
+/// One OCR'd line -> a money line (the balance and/or match change) or nothing.
 pub enum Line {
-    /// a line with amounts only: the balance and/or the match change (see `money_boxes`)
     Money,
-    Reward(Reward),
     Noise,
 }
 
 pub fn parse_line(text: &str) -> Line {
     let t = text.trim();
-    if t.len() < 2 {
+    if t.len() < 2 || money_re().find(t).is_none() {
         return Line::Noise;
     }
-    let money: Vec<_> = money_re().captures_iter(t).collect();
-    let xp = xp_re().captures(t);
-
-    // reason = the letters that are not part of the amounts / XP
-    let mut rest = t.to_string();
-    for m in &money {
-        rest = rest.replace(m.get(0).unwrap().as_str(), " ");
-    }
-    if let Some(x) = &xp {
-        rest = rest.replace(x.get(0).unwrap().as_str(), " ");
-    }
-    let letters = rest.chars().filter(|c| c.is_ascii_alphabetic()).count();
-
-    if letters < 3 {
-        return if money.is_empty() { Line::Noise } else { Line::Money };
-    }
-
-    let (reason, known) = snap_reason(&rest);
-    let amount = money.first().and_then(|m| {
-        let v = digits(m.get(2).unwrap().as_str())?;
-        let neg = matches!(m.get(1).map(|s| s.as_str()), Some("-" | "–" | "—" | "~"));
-        Some(if neg { -v } else { v })
-    });
-    let xp = xp.and_then(|x| digits(x.get(1).unwrap().as_str()));
-    if !known && amount.is_none() && xp.is_none() {
-        return Line::Noise;
-    }
-    Line::Reward(Reward { reason, known, amount, xp })
+    Line::Money
 }
 
 /// The balance from a region that only shows the balance (maybe with a label or a currency icon):
@@ -241,23 +154,20 @@ pub fn parse_lines<S: AsRef<str>>(lines: &[S]) -> Reading {
 pub fn parse_positioned(lines: &[(String, Vec<f32>)]) -> Reading {
     let mut r = Reading::default();
     for (text, xs) in lines {
-        match parse_line(text) {
-            Line::Money => {
-                let xs = (xs.len() == text.chars().count()).then_some(xs.as_slice());
-                let (b, c, at_margin) = money_boxes(text, xs);
-                // normal HUD: change + balance on one line, balance against the right margin
-                if b.is_some() && c.is_some() && at_margin && r.balance.is_none() {
-                    r.hud_layout = true;
-                }
-                if r.balance.is_none() {
-                    r.balance = b;
-                }
-                if r.match_change.is_none() {
-                    r.match_change = c;
-                }
-            }
-            Line::Reward(w) => r.rewards.push(w),
-            Line::Noise => {}
+        if matches!(parse_line(text), Line::Noise) {
+            continue;
+        }
+        let xs = (xs.len() == text.chars().count()).then_some(xs.as_slice());
+        let (b, c, at_margin) = money_boxes(text, xs);
+        // normal HUD: change + balance on one line, balance against the right margin
+        if b.is_some() && c.is_some() && at_margin && r.balance.is_none() {
+            r.hud_layout = true;
+        }
+        if r.balance.is_none() {
+            r.balance = b;
+        }
+        if r.match_change.is_none() {
+            r.match_change = c;
         }
     }
     r
@@ -266,31 +176,6 @@ pub fn parse_positioned(lines: &[(String, Vec<f32>)]) -> Reading {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn reward(t: &str) -> Reward {
-        match parse_line(t) {
-            Line::Reward(r) => r,
-            _ => panic!("not a reward: {t}"),
-        }
-    }
-
-    #[test]
-    fn rewards() {
-        let r = reward("CONTROL ZONE PRESENCE +$150");
-        assert_eq!((r.reason.as_str(), r.amount, r.known), ("CONTROL ZONE PRESENCE", Some(150), true));
-        let r = reward("KILL 250XP");
-        assert_eq!((r.reason.as_str(), r.xp, r.amount), ("KILL", Some(250), None));
-        let r = reward("VEHICLE DESTROYED +$1,000");
-        assert_eq!(r.amount, Some(1000));
-    }
-
-    #[test]
-    fn misreads_are_snapped() {
-        assert_eq!(reward("CONTROL ZONE ENTEREO").reason, "CONTROL ZONE ENTERED");
-        assert_eq!(reward("KlLL 25OXP").reason, "KILL");
-        assert_eq!(reward("KlLL 25OXP").xp, Some(250));
-        assert_eq!(reward("REVIVED TEAMMAT +$2OO").amount, Some(200));
-    }
 
     #[test]
     fn balance_line() {
@@ -366,10 +251,5 @@ mod tests {
     fn noise() {
         assert!(matches!(parse_line("x"), Line::Noise));
         assert!(matches!(parse_line("SOMETHING ELSE"), Line::Noise));
-    }
-
-    #[test]
-    fn spent_is_negative() {
-        assert_eq!(reward("PURCHASE REFUNDED -$500").amount, Some(-500));
     }
 }
