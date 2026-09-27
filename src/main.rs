@@ -18,6 +18,8 @@ mod server;
 mod session;
 mod supabase;
 mod tracker;
+#[cfg(windows)]
+mod update;
 
 use anyhow::{bail, Result};
 use capture::FrameSource;
@@ -58,6 +60,36 @@ fn load_cfg(path: &Path, _args: &[String]) -> Result<Config> {
     Config::load(path)
 }
 
+/// First real launch (or the key was never set): ask for it right in the console instead of making the
+/// player open config.toml by hand. Never fails hard - if writing the file back fails, or stdin isn't
+/// interactive (rare, but replay/CI-style invocations shouldn't hang here), just skip it silently and
+/// keep going with whatever token is already configured (possibly none).
+fn ensure_push_key(cfg: &mut Config, path: &Path) {
+    if !cfg.push.token.is_empty() {
+        return;
+    }
+    println!("Colle ta clé dogtag (récupérée sur https://dogtag.lan), ou Entrée pour la mettre plus tard :");
+    let mut line = String::new();
+    if std::io::stdin().read_line(&mut line).is_err() {
+        return;
+    }
+    let key = line.trim();
+    if key.is_empty() {
+        return;
+    }
+    cfg.push.token = key.to_string();
+    if cfg.push.endpoint.is_empty() {
+        cfg.push.endpoint = "http://192.168.1.128:30787/api/sessions".into();
+    }
+    match toml::to_string_pretty(&cfg) {
+        Ok(text) => match std::fs::write(path, text) {
+            Ok(()) => println!("Clé enregistrée dans {}.", path.display()),
+            Err(e) => eprintln!("[config] pas pu sauvegarder la clé dans {}: {e:#}", path.display()),
+        },
+        Err(e) => eprintln!("[config] pas pu sérialiser la config: {e:#}"),
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -93,7 +125,8 @@ async fn main() -> Result<()> {
             session_main(cfg, maker, false).await
         }
         "run" => {
-            let cfg = load_cfg(&cfg_path, &args)?;
+            let mut cfg = load_cfg(&cfg_path, &args)?;
+            ensure_push_key(&mut cfg, &cfg_path);
             live(cfg).await
         }
         other => bail!("unknown command {other:?} (try --help)"),
@@ -102,6 +135,13 @@ async fn main() -> Result<()> {
 
 #[cfg(windows)]
 async fn live(cfg: Config) -> Result<()> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if let Ok(exe) = std::env::current_exe() {
+        update::cleanup(&exe);
+    }
+    if !args.iter().any(|a| a == "--no-update") && update::check_and_relaunch(&args).await {
+        return Ok(());
+    }
     let cap = cfg.capture.clone();
     let maker: SourceMaker =
         Box::new(move || Ok(Box::new(capture::LiveCapture::new(&cap)?) as Box<dyn FrameSource>));
@@ -124,12 +164,14 @@ async fn session_main(cfg: Config, maker: SourceMaker, realtime: bool) -> Result
     let metrics_stop = Arc::new(tokio::sync::Notify::new());
     let metrics = tokio::spawn(metrics::run(cfg.metrics.clone(), cfg.push.data_dir.clone(), shared.tx.subscribe(), metrics_stop.clone()));
 
-    // ping [push] endpoint every 2 min while playing, in addition to the real send at the end (below) -
-    // keeps the web app's per-player graph moving during a long session instead of jumping once at Ctrl+C
+    // ping [push] endpoint once a minute while playing, in addition to the real send at the end (below) -
+    // keeps the web app's per-player graph moving during a long session instead of jumping once at
+    // Ctrl+C. Fixed on purpose, not a config.toml setting: players shouldn't be hammering the server.
+    const PUSH_EVERY: Duration = Duration::from_secs(60);
     let push_stop = Arc::new(tokio::sync::Notify::new());
     let (pcfg, psh, pstop) = (cfg.push.clone(), shared.clone(), push_stop.clone());
     let push_ticker = tokio::spawn(async move {
-        let mut tick = tokio::time::interval(Duration::from_secs(120));
+        let mut tick = tokio::time::interval(PUSH_EVERY);
         tick.tick().await; // first tick is immediate; skip it, there is nothing to report yet
         loop {
             tokio::select! {

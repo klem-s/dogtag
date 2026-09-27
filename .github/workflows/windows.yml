@@ -1,25 +1,49 @@
 name: windows-build
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # only needed to create a GitHub Release on a tag push
+
 jobs:
   build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --release
-      - run: cargo build --release
-      - name: Télécharge les modèles OCR
+      - name: Version depuis le tag (une release = ce numéro, rien à éditer à la main)
+        if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
-          mkdir -p models
-          curl -L https://ocrs-models.s3-accelerate.amazonaws.com/text-detection.rten -o models/text-detection.rten
-          curl -L https://ocrs-models.s3-accelerate.amazonaws.com/text-recognition.rten -o models/text-recognition.rten
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
+      - run: cargo test --release
+      - run: cargo build --release
+      - name: Prépare le zip (tout à la racine, rien à imbriquer pour les joueurs)
+        shell: bash
+        run: |
+          mkdir -p dist/models
+          cp target/release/dogtag.exe dist/
+          cp config.example.toml dist/
+          cp *.bat dist/
+          cp README.md dist/
+          curl -L https://ocrs-models.s3-accelerate.amazonaws.com/text-detection.rten -o dist/models/text-detection.rten
+          curl -L https://ocrs-models.s3-accelerate.amazonaws.com/text-recognition.rten -o dist/models/text-recognition.rten
       - uses: actions/upload-artifact@v4
         with:
           name: dogtag-windows
-          path: |
-            target/release/dogtag.exe
-            config.example.toml
-            models/
-            *.bat
-            README.md
+          path: dist
+      - name: Zip pour la release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: Compress-Archive -Path dist/* -DestinationPath dogtag-windows.zip
+      - name: Crée la GitHub Release (dogtag.exe en asset direct, pour l'auto-update)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/dogtag.exe
+            dogtag-windows.zip
