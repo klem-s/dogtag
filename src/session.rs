@@ -39,6 +39,10 @@ pub struct Session {
     /// the game's own match change box (-$13,393), as last read
     #[serde(default)]
     pub match_change: Option<i64>,
+    /// the rank/level badge, glued to the balance on the end-of-round layout - only ever set near
+    /// the end of a session, since that's the only screen it's visible on.
+    #[serde(default)]
+    pub rank: Option<i64>,
     /// every reason seen, with how many times
     pub reasons: BTreeMap<String, u32>,
     pub events: Vec<Event>,
@@ -68,6 +72,7 @@ impl Session {
             balance_start: None,
             balance_now: None,
             match_change: None,
+            rank: None,
             reasons: BTreeMap::new(),
             events: Vec::new(),
             downed: false,

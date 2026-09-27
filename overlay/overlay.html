@@ -115,6 +115,8 @@
   body.solde .minor { font-size: 16px; }
   body.solde .minor b { font-size: 21px; }
   body.solde .solde-hide { display: none; }
+  .solde-only { display: none; }
+  body.solde .solde-only { display: block; }
   @media (prefers-reduced-motion: reduce) { .stamped { animation: none; } }
 </style>
 </head>
@@ -136,6 +138,7 @@
       <span class="full"><b id="headshots">0</b>headshots</span>
       <span class="solde-hide"><b id="partie">?</b>partie</span>
       <span class="solde-hide"><b id="solde">?</b>solde</span>
+      <span class="solde-only"><b id="rank">?</b>niveau</span>
     </div>
   </div>
 <script>
@@ -172,6 +175,7 @@
     set("kd", Number(s.kd || 0).toFixed(2));
     set("balance", soldeMode ? soldeText(s.balance_now) : money(s.balance_delta || 0));
     document.getElementById("balance-label").textContent = soldeMode ? "solde" : "balance session";
+    set("rank", s.rank == null ? "?" : String(s.rank));
     ["assists", "revives", "vehicles", "headshots"].forEach(function (k) { set(k, String(s[k] || 0)); });
     var box = document.getElementById("moneybox");
     box.classList.toggle("up", !soldeMode && s.balance_delta > 0);

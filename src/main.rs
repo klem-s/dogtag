@@ -155,7 +155,12 @@ async fn session_main(cfg: Config, maker: SourceMaker, realtime: bool) -> Result
         s.clone()
     });
     if session.mode == "solde" {
-        eprintln!("[session] {} min - solde {:?}", session.minutes().round(), session.balance_now);
+        eprintln!(
+            "[session] {} min - solde {:?}, niveau {:?}",
+            session.minutes().round(),
+            session.balance_now,
+            session.rank
+        );
     } else if session.mode == "money" {
         eprintln!(
             "[session] {} min - solde {:?} -> {:?}, balance {:+}",
@@ -224,16 +229,9 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
             last_lines = lines.clone();
         }
         let reading = parse::parse_positioned(&plines);
-        // rank/level badge, glued to the balance on the end-of-round layout: diagnostic only for now,
-        // like [regions.victory] - not wired into the session/metrics yet.
-        if debug {
-            if let Some(rank) = lines.iter().find_map(|l| parse::rank_in(l)) {
-                if Some(rank) != last_rank {
-                    eprintln!("[rank] {rank}");
-                    last_rank = Some(rank);
-                }
-            }
-        }
+        // rank/level badge, glued to the balance on the end-of-round layout - only ever seen there,
+        // so it naturally only updates near the end of a session.
+        let rank = lines.iter().find_map(|l| parse::rank_in(l));
         // the match change: accepted when read the same on 3 frames in a row
         last_change = match (reading.match_change, last_change) {
             (Some(c), Some((p, n))) if c == p => Some((c, n + 1)),
@@ -305,7 +303,11 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
             shown_change = Some(c);
         }
         let downed = if money_only { None } else { downed };
-        if !fresh.is_empty() || balance.is_some() || rebase.is_some() || downed.is_some() || match_change.is_some() {
+        let rank_changed = rank.is_some() && rank != last_rank;
+        if rank.is_some() {
+            last_rank = rank;
+        }
+        if !fresh.is_empty() || balance.is_some() || rebase.is_some() || downed.is_some() || match_change.is_some() || rank_changed {
             shared.with(|s| {
                 for r in &fresh {
                     eprintln!("[+] {}{}{}", r.reason,
@@ -320,6 +322,10 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
                 if let Some(b) = balance {
                     eprintln!("[solde] {b}$");
                     s.set_balance(b);
+                }
+                if rank_changed {
+                    eprintln!("[niveau] {}", rank.unwrap());
+                    s.rank = rank;
                 }
                 if let Some(b) = rebase {
                     s.rebase_balance(b);

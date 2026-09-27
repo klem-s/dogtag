@@ -10,7 +10,7 @@ use tokio::sync::{watch, Notify};
 
 const FIELDS: &[&str] = &[
     "balance_now", "balance_delta", "kills", "downs", "assists", "headshots", "revives", "vehicles",
-    "objectives", "xp", "money_earned", "money_spent", "match_change",
+    "objectives", "xp", "money_earned", "money_spent", "match_change", "rank",
 ];
 
 fn esc_tag(v: &str) -> String {
@@ -148,5 +148,13 @@ mod tests {
     fn no_balance_yet() {
         let snap = serde_json::json!({"player": "A", "balance_now": null, "kills": 0});
         assert!(!line(&snap, 1).unwrap().contains("balance="));
+    }
+    #[test]
+    fn rank_field() {
+        let snap = serde_json::json!({"player": "A", "balance_now": 100, "rank": 147, "downed": false});
+        assert!(line(&snap, 1).unwrap().contains("rank=147i"));
+        // absent (mode != solde, or not seen yet this session): no field at all, not rank=0i
+        let snap = serde_json::json!({"player": "A", "balance_now": 100, "downed": false});
+        assert!(!line(&snap, 1).unwrap().contains("rank="));
     }
 }

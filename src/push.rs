@@ -63,6 +63,7 @@ async fn post_discord(client: &reqwest::Client, url: &str, s: &Session) -> Resul
             "fields": if s.mode == "solde" {
                 json!([
                     {"name": "Solde", "value": s.balance_now.map(money).unwrap_or("?".into()), "inline": true},
+                    {"name": "Niveau", "value": s.rank.map(|r| r.to_string()).unwrap_or("?".into()), "inline": true},
                 ])
             } else if s.mode == "money" {
                 json!([
