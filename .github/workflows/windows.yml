@@ -8,9 +8,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --release
       - run: cargo build --release
+      - name: Télécharge les modèles OCR
+        shell: bash
+        run: |
+          mkdir -p models
+          curl -L https://ocrs-models.s3-accelerate.amazonaws.com/text-detection.rten -o models/text-detection.rten
+          curl -L https://ocrs-models.s3-accelerate.amazonaws.com/text-recognition.rten -o models/text-recognition.rten
       - uses: actions/upload-artifact@v4
         with:
           name: dogtag-windows
           path: |
             target/release/dogtag.exe
             config.example.toml
+            models/
+            *.bat
+            README.md
