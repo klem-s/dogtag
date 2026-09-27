@@ -34,6 +34,8 @@ create table if not exists public.sessions (
   balance_now bigint,
   balance_start bigint,
   rank integer,
+  wins integer not null default 0,
+  losses integer not null default 0,
   started_at timestamptz not null,
   ended_at timestamptz,
   minutes numeric,

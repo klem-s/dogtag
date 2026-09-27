@@ -116,6 +116,16 @@ pub struct Regions {
     /// trusting it, especially on ultrawide.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub victory: Option<Region>,
+    /// The big "VICTORY"/"DEFEAT" banner. Same caveat as `victory`: centered, not edge-anchored, so
+    /// this is an approximation calibrated on one 16:9 capture (verify with `dogtag calibrate`). On by
+    /// default (unlike `victory`/team scores) - calibrated against both a real VICTORY and DEFEAT
+    /// capture, wide enough to catch either word regardless of its length.
+    #[serde(default = "default_result_region", skip_serializing_if = "Option::is_none")]
+    pub result: Option<Region>,
+}
+
+fn default_result_region() -> Option<Region> {
+    Some(Region { left: None, right: 0.45, width: 0.85, top: 0.10, height: 0.18 })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -179,6 +189,7 @@ impl Default for Regions {
             downed: Region { left: None, right: 0.0, width: 0.60, top: 0.25, height: 0.60 },
             balance: None,
             victory: None,
+            result: default_result_region(),
         }
     }
 }

@@ -46,6 +46,19 @@ pub fn team_scores(lines: &[String]) -> Vec<i64> {
     lines.iter().filter_map(|l| digits(l)).collect()
 }
 
+/// The big end-of-round banner: "VICTORY" or "DEFEAT", or neither if the banner isn't showing (or was
+/// misread badly enough that neither word matches).
+pub fn round_result(lines: &[String]) -> Option<&'static str> {
+    let text = lines.join(" ").to_uppercase();
+    if text.contains("VICTORY") {
+        Some("victory")
+    } else if text.contains("DEFEAT") {
+        Some("defeat")
+    } else {
+        None
+    }
+}
+
 /// One OCR'd line -> a money line (the balance and/or match change) or nothing.
 pub enum Line {
     Money,
@@ -204,6 +217,16 @@ mod tests {
         // only 2-4 digits count; a longer run looks like OCR noise, not a rank badge
         assert_eq!(rank_in("$1,015,55612345"), None);
         assert_eq!(rank_in("$1,0155"), None); // only 1 digit past the group - not a badge either
+    }
+
+    #[test]
+    fn round_result_banner() {
+        assert_eq!(round_result(&["VICTORY".into()]), Some("victory"));
+        assert_eq!(round_result(&["DEFEAT".into()]), Some("defeat"));
+        // OCR noise around the word is fine, only the word itself matters
+        assert_eq!(round_result(&["Vv".into(), "DEFEAT".into(), "gg".into()]), Some("defeat"));
+        assert_eq!(round_result(&["NEXT ROUND IN 00:33".into()]), None);
+        assert_eq!(round_result(&[]), None);
     }
 
     #[test]

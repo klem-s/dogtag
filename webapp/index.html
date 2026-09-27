@@ -93,6 +93,7 @@
       <div class="stats">
         <div class="stat"><div class="v" id="stat-balance">?</div><div class="l">solde</div></div>
         <div class="stat"><div class="v" id="stat-rank">?</div><div class="l">niveau</div></div>
+        <div class="stat"><div class="v" id="stat-wl">?</div><div class="l">victoires / défaites</div></div>
       </div>
       <canvas id="chart" height="180"></canvas>
       <p class="msg" id="chart-empty" hidden>Pas encore de session enregistrée sur cette période.</p>
@@ -154,7 +155,7 @@ async function refreshChart() {
 
   const { data, error } = await sb
     .from("sessions")
-    .select("started_at, balance_now, rank")
+    .select("started_at, balance_now, rank, wins, losses")
     .gte("started_at", since.toISOString())
     .order("started_at", { ascending: true });
 
@@ -164,6 +165,7 @@ async function refreshChart() {
   const last = rows.at(-1);
   byId("stat-balance").textContent = last && last.balance_now != null ? "$" + last.balance_now.toLocaleString() : "?";
   byId("stat-rank").textContent = last && last.rank != null ? last.rank : "?";
+  byId("stat-wl").textContent = last ? `${last.wins ?? 0} / ${last.losses ?? 0}` : "?";
 
   const labels = rows.map((r) => new Date(r.started_at));
   const balances = rows.map((r) => r.balance_now);

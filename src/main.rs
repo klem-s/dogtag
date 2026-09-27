@@ -206,7 +206,14 @@ async fn session_main(cfg: Config, maker: SourceMaker, realtime: bool) -> Result
         s.ended_at = Some(chrono::Utc::now());
         s.clone()
     });
-    eprintln!("[session] {} min - solde {:?}, niveau {:?}", session.minutes().round(), session.balance_now, session.rank);
+    eprintln!(
+        "[session] {} min - solde {:?}, niveau {:?}, {}V/{}D",
+        session.minutes().round(),
+        session.balance_now,
+        session.rank,
+        session.wins,
+        session.losses
+    );
     metrics_stop.notify_one();
     push_stop.notify_one();
     let _ = metrics.await;
@@ -227,6 +234,8 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
     let mut last_victory_read = t0 - Duration::from_secs(10);
     let mut last_victory_scores: Vec<i64> = Vec::new();
     let mut last_rank: Option<i64> = None;
+    let mut last_result_read = t0 - Duration::from_secs(10);
+    let mut result_banner_seen = false;
     let mut downs = tracker::DownTracker::new(Duration::from_secs_f32(cfg.balance.same_down_within_s.max(0.0)));
     let debug = std::env::args().any(|a| a == "--debug");
     let mut last_lines: Vec<String> = Vec::new();
@@ -312,12 +321,35 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
             }
         }
 
+        // VICTORY / DEFEAT banner: edge-triggered (only counts when it *appears*, not every tick it
+        // stays up) so two losses in a row still count as two, not one.
+        let mut round_result: Option<&'static str> = None;
+        if let Some(region) = &cfg.regions.result {
+            if now.duration_since(last_result_read) >= Duration::from_millis(900) {
+                last_result_read = now;
+                let lines = reader.read_lines(&frame, region).unwrap_or_default();
+                let seen = parse::round_result(&lines);
+                if seen.is_some() && !result_banner_seen {
+                    round_result = seen;
+                }
+                result_banner_seen = seen.is_some();
+            }
+        }
+
         let rank_changed = rank.is_some() && rank != last_rank;
         if rank.is_some() {
             last_rank = rank;
         }
-        if balance.is_some() || rebase.is_some() || rank_changed {
+        if balance.is_some() || rebase.is_some() || rank_changed || round_result.is_some() {
             shared.with(|s| {
+                if let Some(r) = round_result {
+                    eprintln!("[manche] {r}");
+                    if r == "victory" {
+                        s.wins += 1;
+                    } else {
+                        s.losses += 1;
+                    }
+                }
                 if let Some(b) = balance {
                     eprintln!("[solde] {b}$");
                     s.set_balance(b);
@@ -352,6 +384,9 @@ fn calibrate(cfg: &Config, img: &Path) -> Result<()> {
     if let Some(v) = cfg.regions.victory {
         regions.push(("victory", v));
     }
+    if let Some(r) = cfg.regions.result {
+        regions.push(("result", r));
+    }
     for (name, region) in &regions {
         let (x, y, w, h) = region.rect(frame.width(), frame.height());
         let out = format!("calibrate/{name}.png");
@@ -374,6 +409,10 @@ fn calibrate(cfg: &Config, img: &Path) -> Result<()> {
         }
         if *name == "victory" {
             println!("  {:<40} => team scores {:?}", lines.join(" | "), parse::team_scores(&lines));
+            continue;
+        }
+        if *name == "result" {
+            println!("  {:<40} => result {:?}", lines.join(" | "), parse::round_result(&lines));
             continue;
         }
         for l in &lines {

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{watch, Notify};
 
-const FIELDS: &[&str] = &["balance_now", "balance_delta", "rank"];
+const FIELDS: &[&str] = &["balance_now", "balance_delta", "rank", "wins", "losses"];
 
 fn esc_tag(v: &str) -> String {
     v.replace('\\', "\\\\").replace(',', "\\,").replace('=', "\\=").replace(' ', "\\ ")

@@ -14,6 +14,11 @@ pub struct Session {
     /// the end of a session, since that's the only screen it's visible on.
     #[serde(default)]
     pub rank: Option<i64>,
+    /// rounds ending in VICTORY/DEFEAT this session, from the same end-of-round screen as `rank`.
+    #[serde(default)]
+    pub wins: u32,
+    #[serde(default)]
+    pub losses: u32,
 }
 
 impl Session {
@@ -27,6 +32,8 @@ impl Session {
             balance_start: None,
             balance_now: None,
             rank: None,
+            wins: 0,
+            losses: 0,
         }
     }
 

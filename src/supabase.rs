@@ -52,6 +52,8 @@ impl Supabase {
             "balance_now": session["balance_now"],
             "balance_start": session["balance_start"],
             "rank": session["rank"],
+            "wins": session["wins"],
+            "losses": session["losses"],
             "started_at": session["started_at"],
             "ended_at": session["ended_at"],
             "minutes": session["minutes"],

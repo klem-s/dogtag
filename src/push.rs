@@ -63,6 +63,7 @@ async fn post_discord(client: &reqwest::Client, url: &str, s: &Session) -> Resul
             "fields": [
                 {"name": "Solde", "value": s.balance_now.map(money).unwrap_or("?".into()), "inline": true},
                 {"name": "Niveau", "value": s.rank.map(|r| r.to_string()).unwrap_or("?".into()), "inline": true},
+                {"name": "V / D", "value": format!("{} / {}", s.wins, s.losses), "inline": true},
             ],
             "timestamp": s.started_at.to_rfc3339(),
         }]
