@@ -60,7 +60,11 @@ async fn post_discord(client: &reqwest::Client, url: &str, s: &Session) -> Resul
             "title": format!("{} - session WARDOGS", s.player),
             "description": format!("{} min de jeu", s.minutes().round()),
             "color": if delta >= 0 { 0x3fa34d } else { 0xc0392b },
-            "fields": if s.mode == "money" {
+            "fields": if s.mode == "solde" {
+                json!([
+                    {"name": "Solde", "value": s.balance_now.map(money).unwrap_or("?".into()), "inline": true},
+                ])
+            } else if s.mode == "money" {
                 json!([
                     {"name": "Balance session", "value": format!("{}{}", if delta >= 0 {"+"} else {""}, money(delta)), "inline": true},
                     {"name": "Solde début", "value": s.balance_start.map(money).unwrap_or("?".into()), "inline": true},

@@ -60,8 +60,9 @@ fn load_cfg(path: &Path, args: &[String]) -> Result<Config> {
     }
     cfg.mode = match cfg.mode.to_lowercase().as_str() {
         "money" | "argent" => "money".into(),
+        "solde" | "total" => "solde".into(),
         "full" | "complet" | "" => "full".into(),
-        other => bail!("mode {other:?} inconnu : \"full\" ou \"money\""),
+        other => bail!("mode {other:?} inconnu : \"full\", \"money\" ou \"solde\""),
     };
     Ok(cfg)
 }
@@ -122,7 +123,11 @@ async fn session_main(cfg: Config, maker: SourceMaker, realtime: bool) -> Result
     let mut sess = Session::new(&cfg.player);
     sess.mode = cfg.mode.clone();
     let shared = Shared::new(sess);
-    eprintln!("[mode] {}", if cfg.mode == "money" { "money : seulement ton argent total et sa variation" } else { "full : récompenses, downs et argent" });
+    eprintln!("[mode] {}", match cfg.mode.as_str() {
+        "money" => "money : seulement ton argent total et sa variation",
+        "solde" => "solde : seulement ton argent total, rien d'autre",
+        _ => "full : récompenses, downs et argent",
+    });
     let stop = Arc::new(AtomicBool::new(false));
 
     let srv = tokio::spawn(server::serve(shared.clone(), cfg.overlay.bind.clone(), cfg.overlay.port));
@@ -149,7 +154,9 @@ async fn session_main(cfg: Config, maker: SourceMaker, realtime: bool) -> Result
         s.ended_at = Some(chrono::Utc::now());
         s.clone()
     });
-    if session.mode == "money" {
+    if session.mode == "solde" {
+        eprintln!("[session] {} min - solde {:?}", session.minutes().round(), session.balance_now);
+    } else if session.mode == "money" {
         eprintln!(
             "[session] {} min - solde {:?} -> {:?}, balance {:+}",
             session.minutes().round(),
@@ -188,7 +195,8 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
     let mut downs = tracker::DownTracker::new(Duration::from_secs_f32(cfg.balance.same_down_within_s.max(0.0)));
     let debug = std::env::args().any(|a| a == "--debug");
     let mut last_lines: Vec<String> = Vec::new();
-    let money_only = cfg.mode == "money";
+    let money_only = cfg.mode == "money" || cfg.mode == "solde";
+    let solde_only = cfg.mode == "solde";
     let mut bal_filter = tracker::BalanceFilter::new(
         3,
         cfg.balance.max_jump,
@@ -280,7 +288,7 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
 
         // the match change only counts when the balance box is on screen with it (a stray "$200" from the
         // map is not a match change) and not while down
-        let match_change = if frozen || reading.balance.is_none() { None } else { match_change };
+        let match_change = if solde_only || frozen || reading.balance.is_none() { None } else { match_change };
         let match_change = match_change.filter(|c| shown_change != Some(*c));
         if let Some(c) = match_change {
             shown_change = Some(c);

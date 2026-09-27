@@ -8,7 +8,9 @@ use std::path::Path;
 pub struct Config {
     /// Your in-game name, sent with every session.
     pub player: String,
-    /// "full": everything (rewards, downs, money). "money": only your total money and its change.
+    /// "full": everything (rewards, downs, money). "money": only your total money and its change
+    /// (balance session, partie). "solde": your total money, full stop - no session delta, no
+    /// partie, same anti-false-positive protections as the other modes.
     pub mode: String,
     pub capture: CaptureCfg,
     pub ocr: OcrCfg,

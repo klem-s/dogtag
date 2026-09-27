@@ -106,6 +106,15 @@
   body.money .money .v { font-size: 46px; }
   body.money .minor { font-size: 16px; }
   body.money .minor b { font-size: 21px; }
+  /* solde mode: the total money, full stop - no delta, no partie */
+  body.solde .full { display: none; }
+  body.solde .row { grid-template-columns: 1fr; }
+  body.solde .money { align-items: flex-start; text-align: left; }
+  body.solde .money .v { font-size: 46px; }
+  body.solde .money.up .v, body.solde .money.down .v { color: inherit; }
+  body.solde .minor { font-size: 16px; }
+  body.solde .minor b { font-size: 21px; }
+  body.solde .solde-hide { display: none; }
   @media (prefers-reduced-motion: reduce) { .stamped { animation: none; } }
 </style>
 </head>
@@ -118,15 +127,15 @@
       <div class="stat full"><span class="v" id="kills">0</span><span class="l">kills</span></div>
       <div class="stat full"><span class="v" id="downs">0</span><span class="l">downs</span></div>
       <div class="stat full"><span class="v" id="kd">0.00</span><span class="l">K/D</span></div>
-      <div class="stat money" id="moneybox"><span class="v" id="balance">$0</span><span class="l">balance session</span></div>
+      <div class="stat money" id="moneybox"><span class="v" id="balance">$0</span><span class="l" id="balance-label">balance session</span></div>
     </div>
     <div class="minor">
       <span class="full"><b id="assists">0</b>assists</span>
       <span class="full"><b id="revives">0</b>revives</span>
       <span class="full"><b id="vehicles">0</b>véhicules</span>
       <span class="full"><b id="headshots">0</b>headshots</span>
-      <span><b id="partie">?</b>partie</span>
-      <span><b id="solde">?</b>solde</span>
+      <span class="solde-hide"><b id="partie">?</b>partie</span>
+      <span class="solde-hide"><b id="solde">?</b>solde</span>
     </div>
   </div>
 <script>
@@ -149,22 +158,27 @@
     el.textContent = text;
     if (!first) { el.classList.remove("stamped"); void el.offsetWidth; el.classList.add("stamped"); }
   }
+  function soldeText(v) {
+    return v == null ? "?" : (v < 0 ? "-$" : "$") + Math.abs(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
   function draw(s) {
     document.getElementById("tag").classList.remove("off");
+    var soldeMode = s.mode === "solde";
     document.body.classList.toggle("money", s.mode === "money");
+    document.body.classList.toggle("solde", soldeMode);
     set("player", s.player || "dogtag");
     set("kills", String(s.kills));
     set("downs", String(s.downs));
     set("kd", Number(s.kd || 0).toFixed(2));
-    set("balance", money(s.balance_delta || 0));
+    set("balance", soldeMode ? soldeText(s.balance_now) : money(s.balance_delta || 0));
+    document.getElementById("balance-label").textContent = soldeMode ? "solde" : "balance session";
     ["assists", "revives", "vehicles", "headshots"].forEach(function (k) { set(k, String(s[k] || 0)); });
     var box = document.getElementById("moneybox");
-    box.classList.toggle("up", s.balance_delta > 0);
-    box.classList.toggle("down", s.balance_delta < 0);
+    box.classList.toggle("up", !soldeMode && s.balance_delta > 0);
+    box.classList.toggle("down", !soldeMode && s.balance_delta < 0);
     document.body.classList.toggle("downed", !!s.downed);
     set("partie", s.match_change == null ? "?" : money(s.match_change));
-    set("solde", s.balance_now == null ? "?" : (s.balance_now < 0 ? "-$" : "$") +
-      Math.abs(s.balance_now).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+    set("solde", soldeText(s.balance_now));
     document.getElementById("time").textContent = (s.minutes || 0) + " min";
   }
   function connect() {
@@ -174,10 +188,7 @@
     ws.onmessage = function (m) { try { draw(JSON.parse(m.data)); } catch (e) {} };
     ws.onclose = function () {
       document.getElementById("tag").classList.add("off");
-      set("partie", s.match_change == null ? "?" : money(s.match_change));
-    set("solde", s.balance_now == null ? "?" : (s.balance_now < 0 ? "-$" : "$") +
-      Math.abs(s.balance_now).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","));
-    document.getElementById("time").textContent = "dogtag n'est pas lancé";
+      document.getElementById("time").textContent = "dogtag n'est pas lancé";
       setTimeout(connect, 3000);
     };
   }

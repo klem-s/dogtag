@@ -1,7 +1,9 @@
 # Copie ce fichier en config.toml (dogtag en crée un par défaut sinon).
 player = "TonPseudo"
-mode = "full"              # "full" : récompenses, downs et argent / "money" : seulement ton argent total
-                           # (aussi en ligne de commande : --mode money)
+mode = "full"              # "full" : récompenses, downs et argent
+                           # "money" : seulement ton argent total et sa variation (balance session, partie)
+                           # "solde" : seulement ton argent total, rien d'autre (pas de balance session, pas de partie)
+                           # (aussi en ligne de commande : --mode money / --mode solde)
 
 [capture]
 window_title = "WARDOGS"   # vide = capturer l'écran `monitor`
