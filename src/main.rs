@@ -6,7 +6,7 @@
 //!   dogtag serve-stats           receive everyone's sessions and serve a leaderboard
 //!
 //! Options: --config <file> (default config.toml), --debug (print every OCR read),
-//!          serve-stats: --port --token --data
+//!          serve-stats: --port --token --data, or --supabase-url --supabase-key for per-user auth
 mod capture;
 mod collector;
 mod config;
@@ -16,6 +16,7 @@ mod parse;
 mod push;
 mod server;
 mod session;
+mod supabase;
 mod tracker;
 
 use anyhow::{bail, Result};
@@ -35,7 +36,7 @@ fn arg(args: &[String], name: &str) -> Option<String> {
 }
 
 /// Options that take a value; everything else starting with "--" is a switch (--debug).
-const VALUE_OPTS: &[&str] = &["--config", "--port", "--token", "--data"];
+const VALUE_OPTS: &[&str] = &["--config", "--port", "--token", "--data", "--supabase-url", "--supabase-key"];
 
 /// The command and its arguments, without the options: `dogtag --debug` -> [].
 fn positional(args: &[String]) -> Vec<String> {
@@ -73,7 +74,12 @@ async fn main() -> Result<()> {
             let port = arg(&args, "--port").and_then(|p| p.parse().ok()).unwrap_or(8787);
             let token = arg(&args, "--token").unwrap_or_default();
             let data = PathBuf::from(arg(&args, "--data").unwrap_or_else(|| "stats.jsonl".into()));
-            collector::run(port, token, data).await
+            let sb = match (arg(&args, "--supabase-url"), arg(&args, "--supabase-key")) {
+                (Some(url), Some(key)) => Some(supabase::Supabase::new(url, key)),
+                (None, None) => None,
+                _ => bail!("--supabase-url and --supabase-key must be given together"),
+            };
+            collector::run(port, token, data, sb).await
         }
         "calibrate" => {
             let Some(img) = pos.get(1) else { bail!("usage: dogtag calibrate <screenshot.png>") };

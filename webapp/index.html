@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dogtag</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/date-fns@3/cdn.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+  :root { color-scheme: light dark; --fg: #1b1e18; --bg: #f4f5f1; --card: #ffffff; --line: #d8dbd2;
+    --accent: #2f7d3b; --danger: #a8392a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #e7e9e3; --bg: #14160f; --card: #1d2017; --line: #333a29; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px;
+    margin-bottom: 16px; }
+  label { display: block; font-size: 13px; opacity: .75; margin-bottom: 4px; }
+  input { width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: transparent; color: var(--fg); font-size: 15px; margin-bottom: 12px; }
+  button { padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--accent);
+    color: white; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--fg); }
+  button.danger { background: var(--danger); }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .err { color: var(--danger); font-size: 13px; margin: 8px 0 0; }
+  .msg { font-size: 13px; opacity: .8; margin: 8px 0 0; }
+  .key-list { list-style: none; margin: 0; padding: 0; }
+  .key-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid var(--line); font-family: ui-monospace, monospace; font-size: 13px; }
+  .key-list li:last-child { border-bottom: none; }
+  .new-key { font-family: ui-monospace, monospace; font-size: 14px; background: var(--bg);
+    border: 1px dashed var(--line); border-radius: 8px; padding: 10px; word-break: break-all; margin-top: 10px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tabs button { background: transparent; color: var(--fg); }
+  .tabs button.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .stats { display: flex; gap: 20px; margin-bottom: 14px; }
+  .stat .v { font-size: 28px; font-weight: 700; }
+  .stat .l { font-size: 12px; opacity: .7; }
+  [hidden] { display: none !important; }
+  a.link { color: var(--accent); cursor: pointer; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>dogtag</h1>
+
+  <div id="auth-card" class="card">
+    <div id="auth-form">
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email">
+      <label for="password">Mot de passe</label>
+      <input id="password" type="password" autocomplete="current-password">
+      <div class="row">
+        <button id="signin">Se connecter</button>
+        <button id="signup" class="ghost">Créer un compte</button>
+      </div>
+      <p class="err" id="auth-err" hidden></p>
+      <p class="msg" id="auth-msg" hidden></p>
+    </div>
+  </div>
+
+  <div id="app" hidden>
+    <div class="card">
+      <div class="row" style="justify-content: space-between;">
+        <span id="who"></span>
+        <a class="link" id="signout">se déconnecter</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0; font-size:16px;">Ta clé API</h2>
+      <p class="msg">À coller dans <code>config.toml</code> ([push] token). Une clé n'est affichée qu'une
+        fois - régénère-en une si tu l'as perdue.</p>
+      <ul class="key-list" id="key-list"></ul>
+      <button id="gen-key">Générer une nouvelle clé</button>
+      <div id="new-key" class="new-key" hidden></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0; font-size:16px;">Ton évolution</h2>
+      <div class="tabs">
+        <button data-range="12h" class="active">12h</button>
+        <button data-range="7d">7 jours</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="v" id="stat-balance">?</div><div class="l">solde</div></div>
+        <div class="stat"><div class="v" id="stat-rank">?</div><div class="l">niveau</div></div>
+      </div>
+      <canvas id="chart" height="180"></canvas>
+      <p class="msg" id="chart-empty" hidden>Pas encore de session enregistrée sur cette période.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// Publishable key: safe to embed in client-side code (that's what it's for). All real access control
+// happens server-side via Postgres row-level security, keyed on the logged-in user's own auth.uid().
+const SUPABASE_URL = "https://mpabvboisgqywhguvdzr.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_nHqxdYoQjwENmG0BuqxlHg_6-NzMckW";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const $ = (id) => document.getElementById(id);
+
+function randomKey() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function showErr(el, msg) {
+  el.textContent = msg;
+  el.hidden = !msg;
+}
+
+async function refreshKeys() {
+  const { data, error } = await sb.from("api_keys").select("id, key, created_at").order("created_at", { ascending: false });
+  const list = $("key-list");
+  list.innerHTML = "";
+  if (error) return;
+  for (const row of data) {
+    const li = document.createElement("li");
+    const masked = row.key.slice(0, 8) + "…" + row.key.slice(-4);
+    const date = new Date(row.created_at).toLocaleDateString();
+    li.innerHTML = `<span>${masked} <span style="opacity:.6">(${date})</span></span>`;
+    const del = document.createElement("button");
+    del.textContent = "supprimer";
+    del.className = "ghost danger";
+    del.style.fontSize = "12px";
+    del.style.padding = "4px 8px";
+    del.onclick = async () => {
+      await sb.from("api_keys").delete().eq("id", row.id);
+      refreshKeys();
+    };
+    li.appendChild(del);
+    list.appendChild(li);
+  }
+}
+
+let chart;
+let currentRange = "12h";
+
+async function refreshChart() {
+  const since = new Date();
+  if (currentRange === "12h") since.setHours(since.getHours() - 12);
+  else since.setDate(since.getDate() - 7);
+
+  const { data, error } = await sb
+    .from("sessions")
+    .select("started_at, balance_now, rank")
+    .gte("started_at", since.toISOString())
+    .order("started_at", { ascending: true });
+
+  const rows = (error ? [] : data).filter((r) => r.balance_now != null || r.rank != null);
+  $("chart-empty").hidden = rows.length > 0;
+
+  const last = rows.at(-1);
+  $("stat-balance").textContent = last && last.balance_now != null ? "$" + last.balance_now.toLocaleString() : "?";
+  $("stat-rank").textContent = last && last.rank != null ? last.rank : "?";
+
+  const labels = rows.map((r) => new Date(r.started_at));
+  const balances = rows.map((r) => r.balance_now);
+  const ranks = rows.map((r) => r.rank);
+
+  if (chart) chart.destroy();
+  chart = new Chart($("chart"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "solde", data: balances, borderColor: "#2f7d3b", yAxisID: "y", tension: 0.15, spanGaps: true },
+        { label: "niveau", data: ranks, borderColor: "#5578b5", yAxisID: "y1", tension: 0.15, spanGaps: true },
+      ],
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { type: "time", time: { unit: currentRange === "12h" ? "hour" : "day" } },
+        y: { position: "left", ticks: { callback: (v) => "$" + v.toLocaleString() } },
+        y1: { position: "right", grid: { drawOnChartArea: false } },
+      },
+    },
+  });
+}
+
+document.querySelectorAll(".tabs button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentRange = btn.dataset.range;
+    refreshChart();
+  });
+});
+
+$("gen-key").addEventListener("click", async () => {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return;
+  const key = randomKey();
+  const { error } = await sb.from("api_keys").insert({ user_id: user.id, key });
+  if (error) return;
+  const box = $("new-key");
+  box.hidden = false;
+  box.textContent = key;
+  refreshKeys();
+});
+
+$("signin").addEventListener("click", async () => {
+  showErr($("auth-err"), "");
+  const { error } = await sb.auth.signInWithPassword({ email: $("email").value, password: $("password").value });
+  if (error) showErr($("auth-err"), error.message);
+});
+
+$("signup").addEventListener("click", async () => {
+  showErr($("auth-err"), "");
+  const { error } = await sb.auth.signUp({ email: $("email").value, password: $("password").value });
+  if (error) return showErr($("auth-err"), error.message);
+  $("auth-msg").hidden = false;
+  $("auth-msg").textContent = "Compte créé - vérifie ta boîte mail si la confirmation est activée, sinon connecte-toi directement.";
+});
+
+$("signout").addEventListener("click", async () => {
+  await sb.auth.signOut();
+  render(null);
+});
+
+async function render(session) {
+  if (session) {
+    $("auth-card").hidden = true;
+    $("app").hidden = false;
+    $("who").textContent = session.user.email;
+    await refreshKeys();
+    await refreshChart();
+  } else {
+    $("auth-card").hidden = false;
+    $("app").hidden = true;
+  }
+}
+
+sb.auth.onAuthStateChange((_event, session) => render(session));
+sb.auth.getSession().then(({ data: { session } }) => render(session));
+</script>
+</body>
+</html>
