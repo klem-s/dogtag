@@ -156,6 +156,7 @@ de la hauteur de l'image, ancrées au bord droit : elles marchent en 1080p, 1440
 | Rien n'est lu | vérifie `calibrate/cash.png` ; `[regions.cash]` |
 | Texte mal lu | `[ocr] scale` (2 à 3), `threshold` (ex. 170) |
 | Niveau jamais détecté | il ne s'affiche qu'en fin de manche, collé au solde (ex. `$967,270147`) - vérifie `[ocr]` en debug à ce moment-là |
+| Victoires/défaites jamais détectées | en debug, regarde `[ocr result]` pile quand la bannière VICTORY/DEFEAT est affichée : si c'est vide ou ne contient pas le mot, `[regions.result]` est mal calé pour ta résolution/UI - recalibre-le |
 | Le solde se fige trop souvent | `calibrate/downed.png` doit contenir « VIEW DAMAGE LOG » quand tu es à terre ; `[regions.downed]` |
 | Un vrai gros gain met du temps à apparaître | `[balance] max_jump`, `big_jump_hold_s` (il est recalé, pas compté) |
 | Le jeu est dans une autre fenêtre | `[capture] window_title` (ou vide + `monitor`) |

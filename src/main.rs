@@ -236,6 +236,7 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
     let mut last_rank: Option<i64> = None;
     let mut last_result_read = t0 - Duration::from_secs(10);
     let mut result_banner_seen = false;
+    let mut last_result_lines: Vec<String> = Vec::new();
     let mut downs = tracker::DownTracker::new(Duration::from_secs_f32(cfg.balance.same_down_within_s.max(0.0)));
     let debug = std::env::args().any(|a| a == "--debug");
     let mut last_lines: Vec<String> = Vec::new();
@@ -328,6 +329,10 @@ fn read_loop(cfg: &Config, maker: SourceMaker, shared: &Shared, stop: &AtomicBoo
             if now.duration_since(last_result_read) >= Duration::from_millis(900) {
                 last_result_read = now;
                 let lines = reader.read_lines(&frame, region).unwrap_or_default();
+                if debug && lines != last_result_lines {
+                    eprintln!("[ocr result] {}", if lines.is_empty() { "(rien lu)".to_string() } else { lines.join(" | ") });
+                    last_result_lines = lines.clone();
+                }
                 let seen = parse::round_result(&lines);
                 if seen.is_some() && !result_banner_seen {
                     round_result = seen;
